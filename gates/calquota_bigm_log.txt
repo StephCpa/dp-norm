@@ -1,0 +1,24 @@
+
+== well N=36000 eps=4 (lr std 0.003, blind 0.003) [17s]
+  blind                Brier 0.2393 acc 0.8293 ece 0.0081
+  std raw              Brier 0.2983 acc 0.8299 ece 0.1363  blind-this: Brier -0.0589 [-0.0649,-0.0529] acc -0.06pts
+  std+publicTS         Brier 0.2430 acc 0.8299 ece 0.0410  blind-this: Brier -0.0036 [-0.0049,-0.0023] acc -0.06pts
+  std+DPTS m=4096      Brier 0.2425 acc 0.8299 ece 0.0388  blind-this: Brier -0.0031 [-0.0042,-0.0021] acc -0.06pts
+  std+DPPlatt m=4096   Brier 0.2425 acc 0.8299 ece 0.0388  blind-this: Brier -0.0031 [-0.0042,-0.0021] acc -0.06pts
+  std+DPTS m=8192      Brier 0.2420 acc 0.8297 ece 0.0348  blind-this: Brier -0.0026 [-0.0037,-0.0016] acc -0.05pts
+  std+DPPlatt m=8192   Brier 0.2420 acc 0.8297 ece 0.0348  blind-this: Brier -0.0026 [-0.0037,-0.0016] acc -0.05pts
+  std+DPTS m=16384     Brier 0.2411 acc 0.8286 ece 0.0248  blind-this: Brier -0.0018 [-0.0033,-0.0003] acc +0.07pts
+  std+DPPlatt m=16384  Brier 0.2408 acc 0.8288 ece 0.0239  blind-this: Brier -0.0014 [-0.0026,-0.0002] acc +0.04pts
+  best private baseline: std+DPPlatt m=16384; S1 fail; S2 PASS; blind beats DP-TS at m in [4096]
+
+== mis N=36000 eps=4 (lr std 0.01, blind 0.003) [32s]
+  blind                Brier 0.3106 acc 0.7788 ece 0.0173
+  std raw              Brier 0.3850 acc 0.7796 ece 0.1750  blind-this: Brier -0.0743 [-0.0821,-0.0666] acc -0.08pts
+  std+publicTS         Brier 0.3140 acc 0.7796 ece 0.0519  blind-this: Brier -0.0033 [-0.0048,-0.0019] acc -0.08pts
+  std+DPTS m=4096      Brier 0.3144 acc 0.7791 ece 0.0524  blind-this: Brier -0.0038 [-0.0057,-0.0018] acc -0.03pts
+  std+DPPlatt m=4096   Brier 0.3144 acc 0.7791 ece 0.0524  blind-this: Brier -0.0038 [-0.0057,-0.0018] acc -0.03pts
+  std+DPTS m=8192      Brier 0.3141 acc 0.7796 ece 0.0505  blind-this: Brier -0.0035 [-0.0054,-0.0015] acc -0.08pts
+  std+DPPlatt m=8192   Brier 0.3141 acc 0.7796 ece 0.0505  blind-this: Brier -0.0035 [-0.0054,-0.0015] acc -0.08pts
+  std+DPTS m=16384     Brier 0.3152 acc 0.7788 ece 0.0509  blind-this: Brier -0.0046 [-0.0059,-0.0033] acc +0.01pts
+  std+DPPlatt m=16384  Brier 0.3150 acc 0.7792 ece 0.0499  blind-this: Brier -0.0043 [-0.0055,-0.0032] acc -0.04pts
+  best private baseline: std+DPTS m=8192; S1 PASS; S2 PASS; blind beats DP-TS at m in [4096, 8192, 16384]

@@ -87,6 +87,49 @@ def select_rows(rows: list, start: int, limit: int) -> list:
     return rows[:limit] if limit > 0 else rows
 
 
+def parse_partition(spec: str) -> tuple[str, float, float]:
+    """'salt:lo:hi' -> (salt, lo, hi) with 0 <= lo < hi <= 1."""
+    salt, lo, hi = spec.rsplit(":", 2)
+    lo, hi = float(lo), float(hi)
+    if not (0.0 <= lo < hi <= 1.0) or not salt:
+        raise ValueError(f"bad partition {spec!r}; want SALT:LO:HI with 0 <= LO < HI <= 1")
+    return salt, lo, hi
+
+
+def unit_bucket(key: str, salt: str) -> float:
+    """A unit's position in [0, 1), a function of its own key and a public salt only."""
+    h = hashlib.sha256(f"{salt}\x00{key}".encode("utf-8")).digest()
+    return int.from_bytes(h[:8], "big") / 2**64
+
+
+def select_partition(rows: list, unit: str, spec: str) -> list:
+    """Rows whose privacy unit hashes into [lo, hi). Unlike positional slicing (--start/--limit), adding or
+    removing one unit of the raw file changes only that unit's membership, so unit-level adjacency on the
+    raw file is preserved, and two disjoint ranges with the same salt and unit definition never share a
+    unit (parallel composition is valid)."""
+    salt, lo, hi = parse_partition(spec)
+    return [q for q in rows if lo <= unit_bucket(unit_key(q, unit), salt) < hi]
+
+
+def partition_record(data: str, unit: str, spec: str, start: int, limit: int) -> dict:
+    """Public description of how the private slice was cut from the raw file (released in the ledgers)."""
+    import os
+    if spec:
+        salt, lo, hi = parse_partition(spec)
+        return dict(scheme="hash", data=os.path.basename(data), unit=unit, salt=salt, lo=lo, hi=hi,
+                    start=start, limit=limit)
+    return dict(scheme="positional", data=os.path.basename(data), unit=unit, start=start, limit=limit)
+
+
+def partitions_disjoint(a: dict | None, b: dict | None) -> bool:
+    """True only when disjointness is provable from the public records: both hash partitions of the same
+    file, unit definition, salt and positional pre-slice, with non-overlapping ranges."""
+    if not a or not b or a.get("scheme") != "hash" or b.get("scheme") != "hash":
+        return False
+    same = all(a.get(k) == b.get(k) for k in ("data", "unit", "salt", "start", "limit"))
+    return same and (a["hi"] <= b["lo"] or b["hi"] <= a["lo"])
+
+
 def context_key(q: Question) -> str:
     return hashlib.sha256(q.context.strip().encode("utf-8")).hexdigest()
 

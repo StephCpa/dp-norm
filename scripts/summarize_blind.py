@@ -13,6 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from dpdecide.privacy import composed_epsilon, epsilon  # noqa: E402
+from dpdecide.schema import partitions_disjoint  # noqa: E402
 
 
 def load(p: Path):
@@ -28,16 +29,20 @@ def wall(run: Path):  # operator-side cost measurement, from the private diagnos
     return None
 
 
-def budget(cands: list[Path]) -> str:
-    """Epsilon of releasing the arm's selected model (reviews of 14 Nov, P0-1 and P1). Selecting on public
-    validation data is post-processing of EVERY candidate, so each candidate's own DP-SGD event is composed
-    (heterogeneous sigma, q, steps allowed). The DP temperature is refitted per candidate, so its pure eps
-    adds up on the calibration slice; the slices are disjoint, so end-to-end is the max of the two.
-    No finite number is reported if any candidate's record is missing or non-private. Seeded or otherwise
-    blocked records give the accountant's number labelled as a simulation, not a guarantee."""
+def budget(cands: list[Path], calibrated: bool) -> str:
+    """Epsilon of releasing the arm's selected model.
+    - Selection on public validation data is post-processing of EVERY candidate: each candidate's own
+      DP-SGD event is composed (heterogeneous sigma, q, steps allowed).
+    - calibrated=True declares that the released model carries a DP temperature refitted per candidate.
+      Then every candidate MUST have a private temperature.json; a missing one is a refusal, not a skip.
+      calibrated=False declares an uncalibrated release (T = 1); temperatures are ignored and named.
+    - Training and calibration combine by parallel composition (max) only when the public partition
+      records prove the slices disjoint (schema.partitions_disjoint); otherwise sequentially (sum).
+    - No finite number if any record is missing or non-private; blocked records give the accountant's
+      number labelled as a simulation, not a guarantee."""
     if not cands:
         return "-"
-    events, cal, blocked = [], 0.0, set()
+    events, cal, blocked, parallel = [], 0.0, set(), True
     delta = None
     for c in cands:
         lp, tp = c / "privacy.json", c / "temperature.json"
@@ -47,21 +52,29 @@ def budget(cands: list[Path]) -> str:
         if L.get("privacy") != "dpsgd" or not L.get("sigma"):
             return f"no guarantee: {c.name} is not a DP-SGD run"
         if delta is not None and L["delta"] != delta:
-            return f"no guarantee: candidates use different delta"
+            return "no guarantee: candidates use different delta"
         delta = L["delta"]
         events.append((L["sigma"], L["sampling_rate"], L["steps"]))
         blocked.update(L.get("release_blockers", ["unknown release status"]))
-        if tp.exists():
+        if calibrated:
+            if not tp.exists():
+                return f"no guarantee: calibrated release declared but {c.name} has no temperature.json"
             T = json.loads(tp.read_text())
             if not T.get("private") or not T.get("eps"):
                 return f"no guarantee: {c.name}'s temperature is non-private"
             cal += T["eps"]
             blocked.update(T.get("release_blockers", ["unknown release status"]))
+            parallel &= partitions_disjoint(L.get("partition"), T.get("partition"))
     per_run = [epsilon(*e, delta, "pld") for e in events]
     train = composed_epsilon(events, delta)
     tag = f" [simulation, not a guarantee: {'; '.join(sorted(blocked))}]" if blocked else ""
-    return (f"per run {min(per_run):.2f}-{max(per_run):.2f}; {len(events)} candidates: train {train:.2f}, "
-            f"cal {cal:.1f}, end-to-end {max(train, cal):.2f}{tag}")
+    if not calibrated:
+        return (f"uncalibrated release: per run {min(per_run):.2f}-{max(per_run):.2f}; {len(events)} candidates: "
+                f"{train:.2f}{tag}")
+    total, how = (max(train, cal), "parallel (disjoint partitions)") if parallel else \
+                 (train + cal, "sequential (disjointness not proven)")
+    return (f"calibrated release: per run {min(per_run):.2f}-{max(per_run):.2f}; {len(events)} candidates: "
+            f"train {train:.2f}, cal {cal:.1f}, end-to-end {total:.2f} {how}{tag}")
 
 
 def main():
@@ -81,7 +94,7 @@ def main():
                         cands.append((v["brier"], run))
                 if cands:
                     best[(obj, regime, clip)] = min(cands)[1]
-    lines.append("| objective | regime | clip | lr | acc | ECE (T=1) | overconf | Brier (T=1) | ECE (T_dp) | Brier (T_dp) | resolution (T_dp) | wall s | epsilon |")
+    lines.append("| objective | regime | clip | lr | acc | ECE (T=1) | overconf | Brier (T=1) | ECE (T_dp) | Brier (T_dp) | resolution (T_dp) | wall s | epsilon (std: calibrated release; blind: T = 1 release) |")
     lines.append("|---|---|---|---|---|---|---|---|---|---|---|---|---|")
     ref = {}
     for obj in ("ce", "rlcd"):
@@ -100,7 +113,7 @@ def main():
                 lines.append(f"| {obj} | {regime} | {clip} | {lr} | {t1['acc']:.4f} | {t1['ece']:.4f} | "
                              f"{t1['overconf']:+.4f} | {t1['brier']:.4f} | {ts['ece']:.4f} | {ts['brier']:.4f} | "
                              f"{ts['resolution']:.5f} | {wall(run) or 0:.0f} | "
-                             f"{budget(sorted(R.glob(f'A-{regime}-{clip}-{obj}-lr*')))} |")
+                             f"{budget(sorted(R.glob(f'A-{regime}-{clip}-{obj}-lr*')), calibrated=clip == 'std')} |")
 
     def get(obj, regime, clip, which):
         run = best.get((obj, regime, clip))

@@ -32,13 +32,17 @@ RANDOMNESS=${RANDOMNESS:-seeded}
 # A private release also needs a PUBLIC declared unit count to fix the sampling rate and steps; without
 # it they come from the private count and the ledger lists that as a release blocker.
 N_UNITS_PUBLIC=${N_UNITS_PUBLIC:-}
+# The grid slices by file position (--start/--limit), which a private release may not do; the ledgers
+# list it as a blocker. For release-protocol runs, pass hash partitions instead, e.g.
+#   TRAIN_PARTITION=s1:0.0:0.8 CAL_PARTITION=s1:0.8:1.0 with RL_START=0 CAL_START=0 CAL_LIMIT=0.
+TRAIN_PARTITION=${TRAIN_PARTITION:-}; CAL_PARTITION=${CAL_PARTITION:-}
 
 PY="python -m"
 TRAIN="$PY dpdecide.train --device $DEVICE --data $DATA/train.jsonl --start $RL_START --eval-data $DATA/val.jsonl \
  --eval-every 25 --eval-n $EVAL_N --grad-checkpointing --micro 8 --unit context --max-rows-per-unit 4 \
- --randomness $RANDOMNESS ${N_UNITS_PUBLIC:+--n-units-public $N_UNITS_PUBLIC}"
+ --randomness $RANDOMNESS ${N_UNITS_PUBLIC:+--n-units-public $N_UNITS_PUBLIC} ${TRAIN_PARTITION:+--partition $TRAIN_PARTITION}"
 LORA="--lora --lora-r 32"
-CAL="--device $DEVICE --data $DATA/train.jsonl --start $CAL_START --limit $CAL_LIMIT --exclude-data $DATA/train.jsonl --exclude-start $RL_START --randomness $RANDOMNESS"
+CAL="--device $DEVICE --data $DATA/train.jsonl --start $CAL_START --limit $CAL_LIMIT --exclude-data $DATA/train.jsonl --exclude-start $RL_START --randomness $RANDOMNESS ${CAL_PARTITION:+--partition $CAL_PARTITION}"
 
 need_star() { : "${B_STAR:?set B_STAR}" "${EP_STAR:?set EP_STAR}" "${LR_STAR:?set LR_STAR}"; }
 

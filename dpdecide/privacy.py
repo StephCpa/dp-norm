@@ -70,10 +70,10 @@ RELEASE_LEDGER_KEYS = frozenset({
     "privacy", "objective", "unit", "max_rows_per_unit", "expected_batch", "sampling_rate", "steps",
     "epochs_expected", "schedule", "n_units_public", "sigma", "accountant", "clip", "clip_labels", "blind_budget",
     "auto_clip_gamma", "only_k", "delta", "eps_target", "eps_rdp", "eps_pld", "label_dp_eps_unit", "adjacency",
-    "randomness", "release_private", "release_blockers", "release_scope", "not_covered", "notes"})
+    "randomness", "release_private", "release_blockers", "release_scope", "not_covered", "notes", "partition"})
 RELEASE_TEMPERATURE_KEYS = frozenset({
     "temperature", "eps", "delta", "sensitivity", "grid_size", "grid", "private", "randomness",
-    "release_private", "release_blockers", "max_rows_per_unit"})
+    "release_private", "release_blockers", "max_rows_per_unit", "partition", "excluded_by_context"})
 
 
 def split_release(record: dict, allowed: frozenset) -> tuple[dict, dict]:

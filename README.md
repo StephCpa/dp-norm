@@ -60,6 +60,13 @@ mkdir -p data && for f in train val test; do
   statistics go to `private_diagnostics/`. Under add/remove adjacency the unit count is private, so a
   DP-SGD release needs `--n-units-public` (a declared public count that fixes q and the steps); without
   it `release_private` is false and `release_blockers` says why.
+- Slicing (reaudit of e58939c): `--start/--limit` cut rows by file position, so adding one raw unit can
+  replace several units of the slice. A private release must use `--partition SALT:LO:HI` (units kept by a
+  salted hash of their own key, `schema.select_partition`) with no positional slicing; otherwise
+  `release_blockers` says so. The ledgers publish the partition; `summarize_blind.py` combines training
+  and calibration by parallel composition only when the records prove the partitions disjoint (same
+  file, unit definition and salt, non-overlapping ranges), and sequentially otherwise. A calibrated release
+  with a missing `temperature.json` is refused.
 - `release_private: true` means only that this run's mechanics meet the stated adjacency. It is not an
   end-to-end statement about a release pipeline (candidate selection, calibration, audits).
 

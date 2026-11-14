@@ -62,7 +62,11 @@ def test_arm_trains(env, objective, priv, extra):
     assert not any(extra_keys), extra_keys
     assert "data_sha256" not in led and led["randomness"] == "secure"
     # dpsgd without --n-units-public derives q and steps from the private count: not a private release
-    assert led["release_private"] == (priv in ("labeldp", "labeldp_raw")), led["release_blockers"]
+    # positional slicing (--start) never makes a private release (reaudit of e58939c, gap 3)
+    assert not led["release_private"]
+    if priv in ("dpsgd", "labeldp", "labeldp_raw"):
+        assert any("positional" in x for x in led["release_blockers"])
+    assert led["partition"]["scheme"] == "positional"
     plan = [r for r in log if r.get("event") == "plan"][0]
     assert set(plan) - {"event"} <= privacy.RELEASE_LEDGER_KEYS
     diag = [json.loads(l) for l in (out / "private_diagnostics/train_stats.jsonl").read_text().splitlines()]
@@ -111,12 +115,14 @@ def test_public_schedule_releases(env):
     """With a declared public unit count, q and steps no longer depend on the private count."""
     d, common = env
     outs = []
-    for start, name in (("600", "pub-a"), ("700", "pub-b")):  # different private slices (different counts)
+    for part, name in (("s1:0.5:1.0", "pub-a"), ("s1:0.6:1.0", "pub-b")):  # different counts, public schedule
         out = d / name
-        train.main(["--init", str(d / "warmup"), "--data", str(d / "train.jsonl"), "--start", start,
+        train.main(["--init", str(d / "warmup"), "--data", str(d / "train.jsonl"), "--start", "0",
+                    "--partition", part,
                     "--objective", "ce", "--privacy", "dpsgd", "--eps", "4", "--n-units-public", "500",
                     "--expected-batch", "8", "--epochs", "1", "--max-steps", "1", "--out", str(out)] + common)
         outs.append(json.loads((out / "privacy.json").read_text()))
     a, b = outs
-    assert a["release_private"] and a["schedule"] == "public"
+    assert a["release_private"], a["release_blockers"]
+    assert a["schedule"] == "public" and a["partition"]["scheme"] == "hash"
     assert {k: a[k] for k in ("sampling_rate", "steps", "sigma")} == {k: b[k] for k in ("sampling_rate", "steps", "sigma")}

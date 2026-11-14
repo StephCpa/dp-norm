@@ -38,7 +38,7 @@ from dpdecide import labeldp as ldp
 from dpdecide import privacy
 from dpdecide.evaluate import evaluate_model, stride_sample
 from dpdecide.objectives import OBJECTIVES, row_losses
-from dpdecide.schema import filter_k, group_units, read_jsonl, select_rows
+from dpdecide.schema import filter_k, group_units, partition_record, read_jsonl, select_partition, select_rows
 
 PRIVACY = ("none", "clip", "dpsgd", "labeldp", "labeldp_raw")
 
@@ -56,6 +56,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--data", required=True)
     ap.add_argument("--start", type=int, default=32000)
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--partition", default="",
+                    help="SALT:LO:HI keeps the units whose salted hash falls in [LO, HI) (stable under adding or removing "
+                         "a unit). Required for a private release; --start/--limit positional slicing is a blocker")
     ap.add_argument("--canaries", default="", help="canaries_train.jsonl from dpdecide.audit make-canaries")
     ap.add_argument("--unit", choices=("context", "row"), default="context")
     ap.add_argument("--max-rows-per-unit", type=int, default=4)
@@ -135,7 +138,10 @@ def main(argv=None):
     random.seed(args.seed)
     np_rng = np.random.default_rng(mseed("poisson-sampling"))  # sampling must be secret for amplification
 
-    rows = filter_k(select_rows(read_jsonl(args.data), args.start, args.limit), args.only_k)
+    rows = select_rows(read_jsonl(args.data), args.start, args.limit)
+    if args.partition:
+        rows = select_partition(rows, args.unit, args.partition)
+    rows = filter_k(rows, args.only_k)
     n_train_rows = len(rows)
     if args.clip_labels == "blind" and args.privacy not in ("clip", "dpsgd"):
         raise ValueError("--clip-labels blind only applies to --privacy clip or dpsgd")
@@ -178,12 +184,16 @@ def main(argv=None):
         blockers.append("sampling rate and steps derived from the private unit count (pass --n-units-public)")
     if args.canaries:
         blockers.append("canaries inserted (audit run)")
+    if args.privacy in ("dpsgd", "labeldp", "labeldp_raw") and (not args.partition or args.start or args.limit):
+        blockers.append("positional row slicing (--start/--limit) or no --partition: adding one raw unit can shift "
+                        "the slice by several units, so unit adjacency on the raw file is not preserved")
     ledger.update(privacy=args.privacy, objective=args.objective, unit=args.unit, n_units=n_units,
                   rows_used=sum(len(u) for u in units), rows_dropped_by_cap=dropped,
                   max_rows_per_unit=args.max_rows_per_unit, train_rows=n_train_rows,
                   canary_rows=len(rows) - n_train_rows, slice_start=args.start, slice_limit=args.limit,
                   expected_batch=args.expected_batch, sampling_rate=q, steps=steps, epochs_expected=args.epochs,
                   schedule=schedule, n_units_public=args.n_units_public,
+                  partition=partition_record(args.data, args.unit, args.partition, args.start, args.limit),
                   sigma=sigma, accountant=args.accountant, clip=args.clip, clip_labels=args.clip_labels, blind_budget=args.blind_budget,
                   auto_clip_gamma=args.auto_clip_gamma, only_k=args.only_k, delta=args.delta if args.privacy == "dpsgd" else 0.0,
                   eps_target=args.eps, adjacency="add/remove one privacy unit" if args.privacy == "dpsgd" else

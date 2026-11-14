@@ -22,7 +22,7 @@ import numpy as np
 
 from dpdecide.metrics import softmax_rows
 from dpdecide.privacy import RELEASE_TEMPERATURE_KEYS, mechanism_seed, split_release
-from dpdecide.schema import filter_k, group_units, read_jsonl, select_rows
+from dpdecide.schema import partition_record, select_partition, filter_k, group_units, read_jsonl, select_rows
 
 GRID = np.exp(np.linspace(np.log(0.25), np.log(4.0), 61))
 
@@ -47,6 +47,7 @@ def main(argv=None):
     ap.add_argument("--data", required=True)
     ap.add_argument("--start", type=int, default=0)
     ap.add_argument("--limit", type=int, default=0)
+    ap.add_argument("--partition", default="", help="SALT:LO:HI hash partition of units (see train.py)")
     ap.add_argument("--exclude-data", default="")
     ap.add_argument("--exclude-start", type=int, default=0)
     ap.add_argument("--exclude-limit", type=int, default=0)
@@ -62,7 +63,10 @@ def main(argv=None):
     ap.add_argument("--out", required=True)
     args = ap.parse_args(argv)
 
-    rows = filter_k(select_rows(read_jsonl(args.data), args.start, args.limit), args.only_k)
+    rows = select_rows(read_jsonl(args.data), args.start, args.limit)
+    if args.partition:
+        rows = select_partition(rows, args.unit, args.partition)
+    rows = filter_k(rows, args.only_k)
     excluded = 0
     if args.exclude_data:
         banned = {q.context.strip() for q in select_rows(read_jsonl(args.exclude_data), args.exclude_start,
@@ -86,10 +90,16 @@ def main(argv=None):
         j = int(util.argmax())
     blockers = ([] if args.eps > 0 else ["non-private argmin (eps = 0)"]) + \
                ([] if args.randomness == "secure" else ["seeded mechanism randomness"])
+    if not args.partition or args.start or args.limit:
+        blockers.append("positional row slicing or no --partition: unit adjacency on the raw file not preserved")
+    if args.exclude_data:
+        blockers.append("context exclusion couples this slice to the training slice (no parallel composition)")
     res = dict(temperature=float(GRID[j]), eps=args.eps, delta=0.0, sensitivity=sens, grid_size=len(GRID),
                grid=[float(g) for g in GRID], max_rows_per_unit=args.max_rows_per_unit, n_units=len(units),
                n_rows=len(used), rows_dropped_by_cap=dropped, rows_excluded_shared_context=excluded,
                private=args.eps > 0, randomness=args.randomness, release_private=not blockers,
+               partition=partition_record(args.data, args.unit, args.partition, args.start, args.limit),
+               excluded_by_context=bool(args.exclude_data),
                release_blockers=blockers)
     public, internal = split_release(res, RELEASE_TEMPERATURE_KEYS)  # cardinalities stay internal
     out = Path(args.out)

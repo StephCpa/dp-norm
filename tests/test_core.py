@@ -213,9 +213,45 @@ def test_composed_epsilon_heterogeneous_and_refusals(tmp_path):
                                                          delta=1e-6, release_blockers=[])))
         (r / "temperature.json").write_text(json.dumps(dict(private=True, eps=1.0, release_blockers=[])))
         runs.append(r)
-    text = budget(runs)
+    # no partition records: disjointness unproven, so training and calibration add up
+    text = budget(runs, calibrated=True)
     assert f"train {both:.2f}" in text and "cal 2.0" in text and "simulation" not in text
+    assert f"end-to-end {both + 2.0:.2f} sequential" in text
+    # provably disjoint hash partitions: parallel composition
+    part = lambda lo, hi: dict(scheme="hash", data="d.jsonl", unit="context", salt="s", lo=lo, hi=hi,  # noqa: E731
+                               start=0, limit=0)
+    for r in runs:
+        L = json.loads((r / "privacy.json").read_text()); L["partition"] = part(0.0, 0.8)
+        (r / "privacy.json").write_text(json.dumps(L))
+        T = json.loads((r / "temperature.json").read_text()); T["partition"] = part(0.8, 1.0)
+        (r / "temperature.json").write_text(json.dumps(T))
+    assert f"end-to-end {max(both, 2.0):.2f} parallel" in budget(runs, calibrated=True)
+    T["partition"] = part(0.7, 1.0)  # overlaps the training range
+    (runs[1] / "temperature.json").write_text(json.dumps(T))
+    assert "sequential" in budget(runs, calibrated=True)
+    # reaudit gap 1: a missing calibration ledger is a refusal when a calibrated release is declared
+    (runs[1] / "temperature.json").unlink()
+    assert budget(runs, calibrated=True).startswith("no guarantee")
+    assert budget(runs, calibrated=False).startswith("uncalibrated release")
     (runs[1] / "temperature.json").write_text(json.dumps(dict(private=False, eps=0.0)))
-    assert budget(runs).startswith("no guarantee")
+    assert budget(runs, calibrated=True).startswith("no guarantee")
     (runs[1] / "privacy.json").unlink()
-    assert budget(runs).startswith("no guarantee")
+    assert budget(runs, calibrated=False).startswith("no guarantee")
+
+
+def test_hash_partition_preserves_unit_adjacency():
+    """Reaudit gap 3: adding one raw unit changes a hash partition by that unit only; positional slicing
+    can replace several units."""
+    from dpdecide.schema import group_units, select_partition, select_rows
+    from dpdecide.synth import tickets
+    from dpdecide import schema
+    base = tickets(300, seed=4)
+    extra = tickets(1, seed=99)  # one new unit (3 rows sharing a context)
+    raw2 = extra + base           # inserted at the front: shifts every position
+    key = lambda rows: {schema.unit_key(q, "context") for q in rows}  # noqa: E731
+    h1, h2 = key(select_partition(base, "context", "s:0.0:0.5")), key(select_partition(raw2, "context", "s:0.0:0.5"))
+    assert len(h1 ^ h2) <= 1
+    p1, p2 = key(select_rows(base, 300, 300)), key(select_rows(raw2, 300, 300))
+    assert len(p1 ^ p2) >= 2
+    assert not schema.partitions_disjoint(None, None)
+
