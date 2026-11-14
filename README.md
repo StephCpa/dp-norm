@@ -32,7 +32,7 @@ person's record. On eve-rlcd's private slice that turns 32,000 rows into 29,380 
 ```
 pip install torch transformers peft dp-accounting scipy numpy pytest
 export PYTHONPATH=$PWD
-python -m pytest -q tests          # 42 tests, about 6 minutes on CPU
+python -m pytest -q tests          # 44 tests, about 7 minutes on CPU
 bash scripts/dry_run_cpu.sh        # whole plan on CPU, about 30 minutes
 ```
 
@@ -52,7 +52,16 @@ mkdir -p data && for f in train val test; do
 - `train_log.jsonl` holds only release-safe values (noisy-update norms, metrics on public eval data).
   Unnoised statistics of the private slice, timing and data hashes go to `private_diagnostics/`
   (operator-only, not covered).
-- Selecting among runs composes them: `privacy.selection_epsilon`; `summarize_blind.py` reports it.
+- Selecting among runs composes them: `privacy.composed_epsilon` composes each candidate's own
+  (sigma, q, steps); `summarize_blind.py` reports it and refuses a finite number if any candidate's
+  record is missing or non-private.
+- Release allowlists (reaudit of e9190c3): `privacy.json` and `temperature.json` carry only the fields in
+  `privacy.RELEASE_LEDGER_KEYS` / `RELEASE_TEMPERATURE_KEYS`. Unit and row counts, drops and label-DP flip
+  statistics go to `private_diagnostics/`. Under add/remove adjacency the unit count is private, so a
+  DP-SGD release needs `--n-units-public` (a declared public count that fixes q and the steps); without
+  it `release_private` is false and `release_blockers` says why.
+- `release_private: true` means only that this run's mechanics meet the stated adjacency. It is not an
+  end-to-end statement about a release pipeline (candidate selection, calibration, audits).
 
 ## Run
 **14 Nov 2026: blindA is killed before any GPU run.** With std + DP temperature scaling tuned after

@@ -73,6 +73,9 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--auto-clip-gamma", type=float, default=0.0,
                     help="> 0: automatic clipping, factor = C / (norm + gamma) (std) or C / (bound + gamma) (blind)")
     ap.add_argument("--only-k", default="", help="keep only rows with these option counts, e.g. 2 or 2-5")
+    ap.add_argument("--n-units-public", type=int, default=0,
+                    help="a PUBLIC unit count (declared, not measured) that fixes the sampling rate q = expected_batch/n "
+                         "and the step count; 0 = derive them from the realized private count (simulation only)")
     ap.add_argument("--expected-batch", type=float, default=128.0, help="expected units per step (Poisson)")
     ap.add_argument("--epochs", type=float, default=2.0, help="expected passes over the units")
     ap.add_argument("--group", type=int, default=4, help="sampled actions per row (bandit objectives)")
@@ -156,24 +159,37 @@ def main(argv=None):
                                                     np.random.default_rng(mseed("randomized-response")))
         ledger.update(st)
 
-    q, steps = privacy.plan(n_units, args.expected_batch, args.epochs)
+    # Sampling schedule. Under add/remove adjacency the unit count is private, and q and the step count
+    # computed from it would release it. A private release fixes them from a public, declared count.
+    schedule = "public" if args.n_units_public > 0 else "from-private-count"
+    q, steps = privacy.plan(args.n_units_public or n_units, args.expected_batch, args.epochs)
     agg_mode = {"none": "none", "labeldp": "none", "labeldp_raw": "none", "clip": "clip", "dpsgd": "dp"}[args.privacy]
     sigma = 0.0
     if args.privacy == "dpsgd":
         sigma = args.sigma or privacy.calibrate_sigma(args.eps, args.delta, q, steps, args.accountant)
         ledger.update(eps_rdp=privacy.epsilon(sigma, q, steps, args.delta, "rdp"),
                       eps_pld=privacy.epsilon(sigma, q, steps, args.delta, "pld"))
+    blockers = []
+    if args.randomness != "secure":
+        blockers.append("seeded mechanism randomness")
+    if args.privacy not in ("dpsgd", "labeldp", "labeldp_raw"):
+        blockers.append(f"privacy mode {args.privacy} is not private")
+    if args.privacy == "dpsgd" and schedule != "public":
+        blockers.append("sampling rate and steps derived from the private unit count (pass --n-units-public)")
+    if args.canaries:
+        blockers.append("canaries inserted (audit run)")
     ledger.update(privacy=args.privacy, objective=args.objective, unit=args.unit, n_units=n_units,
                   rows_used=sum(len(u) for u in units), rows_dropped_by_cap=dropped,
                   max_rows_per_unit=args.max_rows_per_unit, train_rows=n_train_rows,
                   canary_rows=len(rows) - n_train_rows, slice_start=args.start, slice_limit=args.limit,
                   expected_batch=args.expected_batch, sampling_rate=q, steps=steps, epochs_expected=args.epochs,
+                  schedule=schedule, n_units_public=args.n_units_public,
                   sigma=sigma, accountant=args.accountant, clip=args.clip, clip_labels=args.clip_labels, blind_budget=args.blind_budget,
                   auto_clip_gamma=args.auto_clip_gamma, only_k=args.only_k, delta=args.delta if args.privacy == "dpsgd" else 0.0,
                   eps_target=args.eps, adjacency="add/remove one privacy unit" if args.privacy == "dpsgd" else
                   ("change the labels of one privacy unit" if args.privacy.startswith("labeldp") else "n/a"),
                   randomness=args.randomness,
-                  release_private=args.randomness == "secure" and args.privacy in ("dpsgd", "labeldp", "labeldp_raw"),
+                  release_private=not blockers, release_blockers=blockers,
                   release_scope=["model weights", "train_log.jsonl", "privacy.json"],
                   not_covered=["private_diagnostics/ (unnoised statistics of the private slice; operator-only)",
                                "selection among several runs: candidates compose (privacy.selection_epsilon)",
@@ -182,11 +198,14 @@ def main(argv=None):
                   notes=["Per-run guarantee only. End-to-end with a DP temperature: max(eps_train, eps_cal) if the "
                          "calibration slice shares no context with this slice (calibrate.py checks), else the sum; "
                          "a temperature refitted for each of n candidates composes n times on the calibration slice.",
-                         "n_units and rows_used are released (the accountant's q depends on them)."])
-    (out / "privacy.json").write_text(json.dumps(ledger, indent=2, default=float))
+                         "Only allowlisted fields are released (privacy.RELEASE_LEDGER_KEYS); counts, drops and "
+                         "label-DP flip statistics are in private_diagnostics/ledger_internal.json."])
+    public_ledger, internal_ledger = privacy.split_release(ledger, privacy.RELEASE_LEDGER_KEYS)
+    (out / "privacy.json").write_text(json.dumps(public_ledger, indent=2, default=float))
+    (diag_dir / "ledger_internal.json").write_text(json.dumps(internal_ledger, indent=2, default=float))
     (diag_dir / "data.json").write_text(json.dumps(dict(data_sha256=file_sha(args.data),
                                                          canaries_sha256=file_sha(args.canaries)), indent=2))
-    log(event="plan", **{k: v for k, v in ledger.items() if not isinstance(v, list)})
+    log(event="plan", **{k: v for k, v in public_ledger.items() if not isinstance(v, list)})
 
     from dpdecide.model import DecisionLM
     model = DecisionLM.load(args.init, device=args.device, lora=args.lora, lora_r=args.lora_r,

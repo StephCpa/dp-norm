@@ -29,11 +29,14 @@ POST=${POST:-}                      # extra eval/calibrate/audit args for a dry 
 # (reproducible; seeds derived per run and per stream, never shared) and every ledger says
 # release_private=false. Set RANDOMNESS=secure for anything meant as a private release.
 RANDOMNESS=${RANDOMNESS:-seeded}
+# A private release also needs a PUBLIC declared unit count to fix the sampling rate and steps; without
+# it they come from the private count and the ledger lists that as a release blocker.
+N_UNITS_PUBLIC=${N_UNITS_PUBLIC:-}
 
 PY="python -m"
 TRAIN="$PY dpdecide.train --device $DEVICE --data $DATA/train.jsonl --start $RL_START --eval-data $DATA/val.jsonl \
  --eval-every 25 --eval-n $EVAL_N --grad-checkpointing --micro 8 --unit context --max-rows-per-unit 4 \
- --randomness $RANDOMNESS"
+ --randomness $RANDOMNESS ${N_UNITS_PUBLIC:+--n-units-public $N_UNITS_PUBLIC}"
 LORA="--lora --lora-r 32"
 CAL="--device $DEVICE --data $DATA/train.jsonl --start $CAL_START --limit $CAL_LIMIT --exclude-data $DATA/train.jsonl --exclude-start $RL_START --randomness $RANDOMNESS"
 

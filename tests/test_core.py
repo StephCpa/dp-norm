@@ -192,3 +192,30 @@ def test_selection_epsilon_composes_candidates():
     one = privacy.epsilon(1.0, 0.01, 500, 1e-6, "pld")
     two = privacy.selection_epsilon(1.0, 0.01, 500, 1e-6, 2)
     assert two > one * 1.2 and two == pytest.approx(privacy.epsilon(1.0, 0.01, 1000, 1e-6, "pld"))
+
+
+def test_composed_epsilon_heterogeneous_and_refusals(tmp_path):
+    """Reaudit of e9190c3, P1: compose each candidate's own event; refuse missing or non-private records."""
+    import json, sys
+    from pathlib import Path
+    e1, e2 = (1.0, 0.01, 500), (0.6, 0.02, 800)
+    both = privacy.composed_epsilon([e1, e2], 1e-6)
+    assert both > privacy.epsilon(*e2, 1e-6, "pld") > privacy.epsilon(*e1, 1e-6, "pld")
+    assert privacy.composed_epsilon([e1, e1], 1e-6) == pytest.approx(privacy.selection_epsilon(*e1, 1e-6, 2))
+    assert privacy.composed_epsilon([e1, (0.0, 0.01, 500)], 1e-6) == float("inf")
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from summarize_blind import budget
+    runs = []
+    for name, (s, q, st) in (("a", e1), ("b", e2)):
+        r = tmp_path / name
+        r.mkdir()
+        (r / "privacy.json").write_text(json.dumps(dict(privacy="dpsgd", sigma=s, sampling_rate=q, steps=st,
+                                                         delta=1e-6, release_blockers=[])))
+        (r / "temperature.json").write_text(json.dumps(dict(private=True, eps=1.0, release_blockers=[])))
+        runs.append(r)
+    text = budget(runs)
+    assert f"train {both:.2f}" in text and "cal 2.0" in text and "simulation" not in text
+    (runs[1] / "temperature.json").write_text(json.dumps(dict(private=False, eps=0.0)))
+    assert budget(runs).startswith("no guarantee")
+    (runs[1] / "privacy.json").unlink()
+    assert budget(runs).startswith("no guarantee")

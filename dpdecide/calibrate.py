@@ -21,7 +21,7 @@ from pathlib import Path
 import numpy as np
 
 from dpdecide.metrics import softmax_rows
-from dpdecide.privacy import mechanism_seed
+from dpdecide.privacy import RELEASE_TEMPERATURE_KEYS, mechanism_seed, split_release
 from dpdecide.schema import filter_k, group_units, read_jsonl, select_rows
 
 GRID = np.exp(np.linspace(np.log(0.25), np.log(4.0), 61))
@@ -84,13 +84,21 @@ def main(argv=None):
             mechanism_seed(args.randomness, args.seed, run_id, "exponential-mechanism")))
     else:
         j = int(util.argmax())
+    blockers = ([] if args.eps > 0 else ["non-private argmin (eps = 0)"]) + \
+               ([] if args.randomness == "secure" else ["seeded mechanism randomness"])
     res = dict(temperature=float(GRID[j]), eps=args.eps, delta=0.0, sensitivity=sens, grid_size=len(GRID),
-               grid=[float(g) for g in GRID], n_units=len(units), n_rows=len(used), rows_dropped_by_cap=dropped,
-               rows_excluded_shared_context=excluded, private=args.eps > 0, randomness=args.randomness,
-               release_private=args.eps > 0 and args.randomness == "secure")
-    Path(args.out).parent.mkdir(parents=True, exist_ok=True)
-    Path(args.out).write_text(json.dumps(res, indent=2))
-    print(f"T={res['temperature']:.4f} eps={args.eps} units={len(units)} rows={len(used)} excluded={excluded}")
+               grid=[float(g) for g in GRID], max_rows_per_unit=args.max_rows_per_unit, n_units=len(units),
+               n_rows=len(used), rows_dropped_by_cap=dropped, rows_excluded_shared_context=excluded,
+               private=args.eps > 0, randomness=args.randomness, release_private=not blockers,
+               release_blockers=blockers)
+    public, internal = split_release(res, RELEASE_TEMPERATURE_KEYS)  # cardinalities stay internal
+    out = Path(args.out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(json.dumps(public, indent=2))
+    diag = out.parent / "private_diagnostics"
+    diag.mkdir(exist_ok=True)
+    (diag / f"{out.stem}_internal.json").write_text(json.dumps(internal, indent=2))
+    print(f"T={res['temperature']:.4f} eps={args.eps}")
 
 
 if __name__ == "__main__":

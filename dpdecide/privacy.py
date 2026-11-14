@@ -61,6 +61,38 @@ def selection_epsilon(sigma: float, q: float, steps: int, delta: float, n_candid
     return epsilon(sigma, q, steps * n_candidates, delta, "pld")
 
 
+# Fields that may appear in a released ledger (privacy.json, temperature.json, the plan log line).
+# Everything else a run computes about the private slice (unit and row counts, drops, flip rates,
+# per-unit statistics, hashes) is internal: it is written to private_diagnostics/ and never released.
+# Releasing exact cardinalities is incompatible with add/remove adjacency (neighbours differ by one
+# unit, so the count itself distinguishes them), and RR flip counts are the mechanism's secret coins.
+RELEASE_LEDGER_KEYS = frozenset({
+    "privacy", "objective", "unit", "max_rows_per_unit", "expected_batch", "sampling_rate", "steps",
+    "epochs_expected", "schedule", "n_units_public", "sigma", "accountant", "clip", "clip_labels", "blind_budget",
+    "auto_clip_gamma", "only_k", "delta", "eps_target", "eps_rdp", "eps_pld", "label_dp_eps_unit", "adjacency",
+    "randomness", "release_private", "release_blockers", "release_scope", "not_covered", "notes"})
+RELEASE_TEMPERATURE_KEYS = frozenset({
+    "temperature", "eps", "delta", "sensitivity", "grid_size", "grid", "private", "randomness",
+    "release_private", "release_blockers", "max_rows_per_unit"})
+
+
+def split_release(record: dict, allowed: frozenset) -> tuple[dict, dict]:
+    """(public, internal): the allowlisted part may be released; the rest goes to private_diagnostics/."""
+    return ({k: v for k, v in record.items() if k in allowed},
+            {k: v for k, v in record.items() if k not in allowed})
+
+
+def composed_epsilon(events: list[tuple[float, float, int]], delta: float) -> float:
+    """PLD epsilon of running every (sigma, q, steps) DP-SGD event on the same private slice. Use this,
+    not one candidate's parameters times n, when candidates differ (review of e9190c3, P1)."""
+    acc = pld.PLDAccountant()
+    for sigma, q, steps in events:
+        if not sigma or sigma <= 0:
+            return math.inf
+        acc.compose(_event(sigma, q, steps))
+    return float(acc.get_epsilon(delta))
+
+
 def plan(n_units: int, expected_batch: float, epochs: float) -> tuple[float, int]:
     q = min(1.0, expected_batch / n_units)
     return q, max(1, math.ceil(epochs / q))

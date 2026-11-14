@@ -12,7 +12,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from dpdecide.privacy import epsilon, selection_epsilon  # noqa: E402
+from dpdecide.privacy import composed_epsilon, epsilon  # noqa: E402
 
 
 def load(p: Path):
@@ -29,24 +29,39 @@ def wall(run: Path):  # operator-side cost measurement, from the private diagnos
 
 
 def budget(cands: list[Path]) -> str:
-    """Per-run epsilon vs the epsilon of releasing the arm's selected model (review P0-1): selecting on
-    public validation data is post-processing of every candidate, so the candidates compose. The DP
-    temperature is refitted per candidate on the calibration slice, so its pure eps composes n times;
-    the two slices are disjoint, so the end-to-end budget is the max of the two."""
-    led = [json.loads((c / "privacy.json").read_text()) for c in cands if (c / "privacy.json").exists()]
-    if not led or "sigma" not in led[0] or not led[0]["sigma"]:
+    """Epsilon of releasing the arm's selected model (reviews of 14 Nov, P0-1 and P1). Selecting on public
+    validation data is post-processing of EVERY candidate, so each candidate's own DP-SGD event is composed
+    (heterogeneous sigma, q, steps allowed). The DP temperature is refitted per candidate, so its pure eps
+    adds up on the calibration slice; the slices are disjoint, so end-to-end is the max of the two.
+    No finite number is reported if any candidate's record is missing or non-private. Seeded or otherwise
+    blocked records give the accountant's number labelled as a simulation, not a guarantee."""
+    if not cands:
         return "-"
-    L, n = led[0], len(led)
-    per_run = epsilon(L["sigma"], L["sampling_rate"], L["steps"], L["delta"], "pld")
-    sel = selection_epsilon(L["sigma"], L["sampling_rate"], L["steps"], L["delta"], n)
-    cal = []
+    events, cal, blocked = [], 0.0, set()
+    delta = None
     for c in cands:
-        t = c / "temperature.json"
-        if t.exists():
-            cal.append(json.loads(t.read_text()).get("eps", 0.0))
-    cal_eps = sum(cal)
-    sim = "" if all(x.get("release_private") for x in led) else " (simulation: seeded randomness)"
-    return f"{per_run:.2f} per run; {n} candidates: train {sel:.2f}, cal {cal_eps:.1f}, end-to-end {max(sel, cal_eps):.2f}{sim}"
+        lp, tp = c / "privacy.json", c / "temperature.json"
+        if not lp.exists():
+            return f"no guarantee: {c.name} has no privacy.json"
+        L = json.loads(lp.read_text())
+        if L.get("privacy") != "dpsgd" or not L.get("sigma"):
+            return f"no guarantee: {c.name} is not a DP-SGD run"
+        if delta is not None and L["delta"] != delta:
+            return f"no guarantee: candidates use different delta"
+        delta = L["delta"]
+        events.append((L["sigma"], L["sampling_rate"], L["steps"]))
+        blocked.update(L.get("release_blockers", ["unknown release status"]))
+        if tp.exists():
+            T = json.loads(tp.read_text())
+            if not T.get("private") or not T.get("eps"):
+                return f"no guarantee: {c.name}'s temperature is non-private"
+            cal += T["eps"]
+            blocked.update(T.get("release_blockers", ["unknown release status"]))
+    per_run = [epsilon(*e, delta, "pld") for e in events]
+    train = composed_epsilon(events, delta)
+    tag = f" [simulation, not a guarantee: {'; '.join(sorted(blocked))}]" if blocked else ""
+    return (f"per run {min(per_run):.2f}-{max(per_run):.2f}; {len(events)} candidates: train {train:.2f}, "
+            f"cal {cal:.1f}, end-to-end {max(train, cal):.2f}{tag}")
 
 
 def main():

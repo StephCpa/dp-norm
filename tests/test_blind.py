@@ -101,7 +101,8 @@ def test_train_blind_end_to_end(tiny, objective, extra):
     led = json.loads((out / "privacy.json").read_text())
     assert led["clip_labels"] == "blind" and led["eps_pld"] <= 4.0 * 1.001
     if extra[:1] == ["--only-k"]:
-        assert led["rows_used"] == 60  # only the paging question of each ticket is binary
+        internal = json.loads((out / "private_diagnostics/ledger_internal.json").read_text())
+        assert internal["rows_used"] == 60  # only the paging question of each ticket is binary
 
 
 @pytest.mark.parametrize("auto", [0.0, 0.01])

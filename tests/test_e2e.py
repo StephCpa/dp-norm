@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from dpdecide import audit, calibrate, evaluate, train
+from dpdecide import privacy, audit, calibrate, evaluate, train
 from dpdecide.schema import write_jsonl
 from dpdecide.synth import tickets
 
@@ -44,7 +44,11 @@ def test_arm_trains(env, objective, priv, extra):
                 "--max-steps", "3", "--lr", "1e-3", "--eval-data", str(d / "val.jsonl"), "--eval-every", "3",
                 "--eval-n", "30", "--out", str(out)] + extra + common)
     led = json.loads((out / "privacy.json").read_text())
-    assert led["n_units"] == 200 and led["rows_used"] == 600
+    internal = json.loads((out / "private_diagnostics/ledger_internal.json").read_text())
+    assert internal["n_units"] == 200 and internal["rows_used"] == 600
+    # reaudit of e9190c3, P0: only allowlisted fields are released; no cardinalities, no RR flip statistics
+    assert set(led) <= privacy.RELEASE_LEDGER_KEYS, sorted(set(led) - privacy.RELEASE_LEDGER_KEYS)
+    assert not {"n_units", "rows_used", "label_dp_flip_rate", "label_dp_rows"} & set(led)
     if priv == "dpsgd":
         assert led["sigma"] > 0 and led["eps_pld"] <= float(extra[1]) * 1.001
     if priv.startswith("labeldp"):
@@ -57,7 +61,10 @@ def test_arm_trains(env, objective, priv, extra):
     extra_keys = [sorted(set(r) - allowed) for r in log if r.get("event") != "plan"]
     assert not any(extra_keys), extra_keys
     assert "data_sha256" not in led and led["randomness"] == "secure"
-    assert led["release_private"] == (priv in ("dpsgd", "labeldp", "labeldp_raw"))
+    # dpsgd without --n-units-public derives q and steps from the private count: not a private release
+    assert led["release_private"] == (priv in ("labeldp", "labeldp_raw")), led["release_blockers"]
+    plan = [r for r in log if r.get("event") == "plan"][0]
+    assert set(plan) - {"event"} <= privacy.RELEASE_LEDGER_KEYS
     diag = [json.loads(l) for l in (out / "private_diagnostics/train_stats.jsonl").read_text().splitlines()]
     assert diag and any("wall_sec" in r for r in diag)
     assert (out / "model.safetensors").exists()
@@ -72,7 +79,9 @@ def test_calibrate_evaluate_audit(env):
                     "--exclude-data", str(d / "train.jsonl"), "--exclude-start", "600", "--eps", "4",
                     "--device", "cpu", "--max-len", "128", "--out", str(model / "temperature.json")])
     t = json.loads((model / "temperature.json").read_text())
-    assert t["private"] and t["n_units"] == 100 and t["rows_excluded_shared_context"] == 0
+    assert t["private"] and set(t) <= privacy.RELEASE_TEMPERATURE_KEYS and "n_units" not in t
+    ti = json.loads((model / "private_diagnostics/temperature_internal.json").read_text())
+    assert ti["n_units"] == 100 and ti["rows_excluded_shared_context"] == 0
     evaluate.main(["--model", str(model), "--data", str(d / "test.jsonl"), "--temperature",
                    str(model / "temperature.json"), "--device", "cpu", "--max-len", "128", "--out", str(model / "eval")])
     m = json.loads((model / "eval/metrics.json").read_text())
@@ -96,3 +105,18 @@ def test_calibrate_evaluate_audit(env):
                 "--out", str(d / "mia.json")])
     mia = json.loads((d / "mia.json").read_text())
     assert mia["n_members"] == 100 and 0.0 <= mia["auc"] <= 1.0
+
+
+def test_public_schedule_releases(env):
+    """With a declared public unit count, q and steps no longer depend on the private count."""
+    d, common = env
+    outs = []
+    for start, name in (("600", "pub-a"), ("700", "pub-b")):  # different private slices (different counts)
+        out = d / name
+        train.main(["--init", str(d / "warmup"), "--data", str(d / "train.jsonl"), "--start", start,
+                    "--objective", "ce", "--privacy", "dpsgd", "--eps", "4", "--n-units-public", "500",
+                    "--expected-batch", "8", "--epochs", "1", "--max-steps", "1", "--out", str(out)] + common)
+        outs.append(json.loads((out / "privacy.json").read_text()))
+    a, b = outs
+    assert a["release_private"] and a["schedule"] == "public"
+    assert {k: a[k] for k in ("sampling_rate", "steps", "sigma")} == {k: b[k] for k in ("sampling_rate", "steps", "sigma")}
