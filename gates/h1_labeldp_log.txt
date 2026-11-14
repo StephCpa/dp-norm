@@ -1,0 +1,10 @@
+bayes oracle on test: {'acc': np.float64(0.6835), 'ece': np.float64(0.0045), 'brier': np.float64(0.4107), 'overconf': np.float64(0.0009), 'res_top': np.float64(0.0496), 'rel_top': np.float64(0.0)}
+ rlcd  labeldp eps=   1 cm=None lr=3e-03 | acc 0.617 ece 0.020 over +0.015 brier 0.517 res 0.0229 | +TS(T=1.02) ece 0.018 brier 0.517 | sigma 0.00 [3s]
+ rlcd labeldp_raw eps=   1 cm=None lr=3e-04 | acc 0.605 ece 0.159 over -0.159 brier 0.571 res 0.0193 | +TS(T=0.48) ece 0.019 brier 0.533 | sigma 0.00 [6s]
+ce_fc  labeldp eps=   1 cm=None lr=1e-03 | acc 0.621 ece 0.029 over -0.023 brier 0.515 res 0.0221 | +TS(T=0.91) ece 0.020 brier 0.515 | sigma 0.00 [8s]
+ rlcd  labeldp eps=   4 cm=None lr=1e-02 | acc 0.632 ece 0.017 over +0.015 brier 0.500 res 0.0252 | +TS(T=1.02) ece 0.015 brier 0.500 | sigma 0.00 [10s]
+ rlcd labeldp_raw eps=   4 cm=None lr=1e-02 | acc 0.632 ece 0.015 over -0.012 brier 0.500 res 0.0252 | +TS(T=0.93) ece 0.010 brier 0.500 | sigma 0.00 [13s]
+ce_fc  labeldp eps=   4 cm=None lr=1e-02 | acc 0.632 ece 0.007 over +0.004 brier 0.498 res 0.0268 | +TS(T=1.00) ece 0.014 brier 0.498 | sigma 0.00 [15s]
+ rlcd  labeldp eps=   8 cm=None lr=1e-02 | acc 0.632 ece 0.015 over +0.012 brier 0.499 res 0.0256 | +TS(T=1.00) ece 0.015 brier 0.499 | sigma 0.00 [17s]
+ rlcd labeldp_raw eps=   8 cm=None lr=1e-02 | acc 0.632 ece 0.014 over +0.012 brier 0.499 res 0.0256 | +TS(T=1.00) ece 0.014 brier 0.499 | sigma 0.00 [20s]
+ce_fc  labeldp eps=   8 cm=None lr=1e-02 | acc 0.632 ece 0.007 over -0.005 brier 0.495 res 0.0283 | +TS(T=0.98) ece 0.008 brier 0.495 | sigma 0.00 [22s]
