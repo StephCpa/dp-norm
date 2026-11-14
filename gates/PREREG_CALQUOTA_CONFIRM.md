@@ -47,3 +47,26 @@ should show that a quota of N/32 or more costs little through privacy of calibra
 Closure → label-blind clipping is written up as a mechanism note (stationarity under rank conditions, the
 cost in signal, the reward-blind analysis, negative results); no GPU. Blind better → the two-stage GPU plan
 becomes a candidate, sized for an effect near 0.003. Inconclusive → no GPU; report as is.
+
+## Outcome (15 Nov 2026; run after b0f20ac was pushed)
+Fresh seeds 101-110, all 12 cells completed, no calibrator edge hit in any cell (range check passed).
+D = Brier(blind) − Brier(deployable std), positive = blind worse, paired 95% t-interval (df 9):
+
+| cell | D | accuracy, blind − std | deployable std (chosen on dev) |
+|---|---|---|---|
+| **well, N = 36000, ε = 4** | **+0.00128 [+0.00095, +0.00161]** | −0.08 pts | m = 4500, TS, lr 1e-2 |
+| **mis, N = 36000, ε = 4** | **+0.00238 [+0.00165, +0.00310]** | −0.07 pts | m = 4500, TS, lr 3e-2 |
+
+- **Decision: closure.** Both lower limits are above −0.003 (they are above 0). Prediction held, including D > 0.
+- Secondary, no decisions: N = 36000 at ε = 1 and 8: D between +0.00115 and +0.00247, every interval above 0.
+  N = 8000: D from −0.00663 to +0.00008, every interval crossing 0. In the cells with negative D the dev seeds
+  chose a very small quota (m = 62 or 250), whose DP temperature is noisy. Against the oracle-best quota blind
+  is worse in all 12 cells (+0.00059 to +0.00271), and against std + public TS in all 12 (+0.00130 to +0.00316).
+- Decomposition at the primary cells (same trained model; well / mis):
+  - privacy of calibration: +0.00050 / +0.00090 at m = 281 (intervals cross 0); at m ≥ 1125 at most +0.00021;
+  - finite calibration set: +0.00127 / +0.00080 at m = 281; about 0 from m = 1125 on;
+  - fewer training rows: about 0 up to m = 9000; +0.00101 / +0.00114 at m = N/2.
+  So from m = N/32 on, the whole cost of calibrating is at most a few 1e-4 Brier, smaller than what blind
+  loses to the worst-case-label bound (blind − std at m = 1125: +0.00138 / +0.00271). The prediction that a
+  quota of N/32 or more costs little through privacy of calibration held.
+- Consequence (pre-registered): a mechanism note, no GPU.

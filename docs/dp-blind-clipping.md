@@ -4,7 +4,8 @@
 > - **Retracted (14 Nov):** the 13 Nov automatic-clipping advantage in the K = 4 toy (std's lr was chosen before temperature scaling).
 > - **Retracted (15 Nov):** the 14 Nov "open, small" advantage of 0.001–0.005 Brier in the binary calibration-quota screen. The standard baseline's calibrators were capped (T ≤ 4, Platt a ≥ 1/4) and every public TS fit sat on T = 4. With the caps widened and nothing else changed, the advantage vanishes or reverses (§4).
 > - **Kept:** the stationarity mechanism and its conditions (§2); the reward-blind analysis with narrow conclusions (§7).
-> - **GPU suspended.** A CPU confirmation with frozen wide ranges and fresh seeds is pre-registered (`gates/PREREG_CALQUOTA_CONFIRM.md`) and is run only after that file is pushed (§6).
+> - **Confirmed negative (15 Nov), pre-registered in b0f20ac before the run.** With wide calibrator ranges, full-pipeline tuning on dev seeds and 10 fresh seeds, blind is *worse* than the deployable standard pipeline at the primary cells (N = 36000, ε = 4): +0.00128 [+0.00095, +0.00161] Brier well-specified, +0.00238 [+0.00165, +0.00310] misspecified. The closure rule is met. Calibrating with N/32 or more of the budget costs at most a few 1e-4 Brier, less than blind loses to the worst-case-label bound (§6).
+> - **Decision: no GPU.** This line closes as a mechanism note.
 > - **Release protocol:** fixed in four rounds (§8). `release_private: true` covers one run's mechanics under the stated adjacency, not a full selection-and-calibration pipeline. No run so far is a private release.
 
 Code: github.com/StephCpa/dp-norm. Pre-registrations and outputs in `gates/`.
@@ -73,7 +74,20 @@ The 55-GPU-hour D1 grid would mostly re-measure Zhang et al. Not run.
 - Nearest: DP-ERM with Lipschitz losses; Clipless DP-SGD (Béthune et al.); Menon et al.; DiceSGD, BAM; Bu et al.; adaptive clipping; DPSGD-F.
 - No paper found with a per-example worst case over labels or a fixed-point analysis of proper scoring rules under clipping. Not a novelty claim.
 
-## 6. Next: CPU confirmation, then decide; GPU suspended
+## 6. CPU confirmation (pre-registered in b0f20ac, run after it was pushed): closure
+| cell | D = blind − deployable std | accuracy | deployable std |
+|---|---|---|---|
+| well, N = 36000, ε = 4 | +0.00128 [+0.00095, +0.00161] | −0.08 pts | m = 4500, TS |
+| mis, N = 36000, ε = 4 | +0.00238 [+0.00165, +0.00310] | −0.07 pts | m = 4500, TS |
+- No calibrator hit a range edge in any cell.
+- Secondary (no decisions): blind is worse at N = 36000 for ε = 1 and 8 too (+0.0011 to +0.0025, intervals above 0). At N = 8000 every interval crosses 0. Where D is negative there, the dev seeds picked a very small quota (62 or 250 rows) with a noisy DP temperature. Blind is worse than the oracle-best quota and than std + public TS in all 12 cells.
+- Decomposition at the primary cells:
+  - From m = N/32 on, privacy of calibration costs at most 2e-4 Brier, the finite calibration set about 0, and fewer training rows about 0 up to N/4.
+  - Blind's loss from the worst-case-label bound (about 1.3e-3 / 2.7e-3 Brier against std at m = N/32) is larger than everything calibration costs.
+  - Within this toy, the trade the plan asked about goes to standard clipping plus a small private calibrator.
+- Outputs: `gates/calquota_confirm_results.json` (per-seed metrics, calibrator parameters, edge hits, steps, q) and `calquota_confirm_log.txt`.
+
+### Design of the confirmation (as pre-registered)
 - `blindA` refuses to run without `FORCE_BLINDA=1`.
 - `gates/calquota_confirm.py` with `gates/PREREG_CALQUOTA_CONFIRM.md`:
   - frozen wide ranges (T ∈ [1/32, 32]; Platt a ∈ [1/32, 4], b ∈ [−3, 3]) with edge-hit checks;

@@ -1,0 +1,102 @@
+== well N=36000 eps=4: deployable std {'m': 4500, 'cal': 'TS', 'lr': 0.01, 'val': 0.23303572278224505} | blind lr 0.001
+   blind - deployable +0.00128 [+0.00095, +0.00161]  acc -0.08 pts | vs public TS +0.00159 | vs oracle-best m=1125 +0.00138 | range ok True  [64s]
+== mis N=36000 eps=4: deployable std {'m': 4500, 'cal': 'TS', 'lr': 0.03, 'val': 0.30816701528116736} | blind lr 0.01
+   blind - deployable +0.00238 [+0.00165, +0.00310]  acc -0.07 pts | vs public TS +0.00295 | vs oracle-best m=1125 +0.00271 | range ok True  [130s]
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.018286, sigma=0.300000, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.018286, sigma=0.300000, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.018286, sigma=0.300000, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.018286, sigma=0.300000, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.300000, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.300000, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.300000, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.300000, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.300000, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.300000, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.300000, alpha=1.300000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.300000, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.300000, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.300000, alpha=1.300000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.725417, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.725417, alpha=1.200000. Excluding this order from the epsilon computation.
+== well N=8000 eps=4: deployable std {'m': 2000, 'cal': 'TS', 'lr': 0.01, 'val': 0.23029312456568637} | blind lr 0.003
+   blind - deployable +0.00008 [-0.00089, +0.00105]  acc -0.03 pts | vs public TS +0.00181 | vs oracle-best m=1000 +0.00068 | range ok True  [154s]
+== mis N=8000 eps=4: deployable std {'m': 62, 'cal': 'TS', 'lr': 0.03, 'val': 0.31544153647115875} | blind lr 0.003
+   blind - deployable -0.00370 [-0.01053, +0.00312]  acc -0.02 pts | vs public TS +0.00222 | vs oracle-best m=1000 +0.00100 | range ok True  [176s]
+== well N=36000 eps=1: deployable std {'m': 4500, 'cal': 'TS', 'lr': 0.01, 'val': 0.23352657905706956} | blind lr 0.001
+   blind - deployable +0.00158 [+0.00070, +0.00246]  acc -0.12 pts | vs public TS +0.00207 | vs oracle-best m=4500 +0.00158 | range ok True  [239s]
+== mis N=36000 eps=1: deployable std {'m': 4500, 'cal': 'TS', 'lr': 0.01, 'val': 0.31024231195646634} | blind lr 0.003
+   blind - deployable +0.00115 [+0.00026, +0.00205]  acc -0.06 pts | vs public TS +0.00189 | vs oracle-best m=9000 +0.00128 | range ok True  [298s]
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.018286, sigma=0.300000, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.018286, sigma=0.300000, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.300000, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.300000, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.300000, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.300000, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.300000, alpha=1.300000. Excluding this order from the epsilon computation.
+== well N=8000 eps=1: deployable std {'m': 250, 'cal': 'TS', 'lr': 0.01, 'val': 0.23103797652726912} | blind lr 0.003
+   blind - deployable -0.00663 [-0.01681, +0.00354]  acc -0.22 pts | vs public TS +0.00316 | vs oracle-best m=1000 -0.00068 | range ok True  [323s]
+== mis N=8000 eps=1: deployable std {'m': 250, 'cal': 'TS', 'lr': 0.03, 'val': 0.3178886548432713} | blind lr 0.003
+   blind - deployable -0.00388 [-0.01065, +0.00289]  acc -0.11 pts | vs public TS +0.00308 | vs oracle-best m=1000 -0.00040 | range ok True  [345s]
+== well N=36000 eps=8: deployable std {'m': 4500, 'cal': 'TS', 'lr': 0.01, 'val': 0.23280298825586856} | blind lr 0.001
+   blind - deployable +0.00149 [+0.00112, +0.00186]  acc -0.07 pts | vs public TS +0.00162 | vs oracle-best m=4500 +0.00149 | range ok True  [405s]
+== mis N=36000 eps=8: deployable std {'m': 4500, 'cal': 'TS', 'lr': 0.03, 'val': 0.3087262228637408} | blind lr 0.01
+   blind - deployable +0.00247 [+0.00183, +0.00311]  acc -0.14 pts | vs public TS +0.00256 | vs oracle-best m=4500 +0.00247 | range ok True  [466s]
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.018286, sigma=0.300000, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.018286, sigma=0.300000, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.018286, sigma=0.300000, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.018286, sigma=0.300000, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.018286, sigma=0.536065, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.018286, sigma=0.536065, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.300000, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.300000, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.300000, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.300000, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.556811, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.556811, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.579645, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.579645, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.578474, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.578474, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.578614, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.578614, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.578612, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.578612, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.578611, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.578611, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.578612, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.021333, sigma=0.578612, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.300000, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.300000, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.300000, alpha=1.300000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.300000, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.300000, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.300000, alpha=1.300000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.606946, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.606946, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.606946, alpha=1.300000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.615695, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.615695, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.615695, alpha=1.300000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.611207, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.611207, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.611207, alpha=1.300000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.611008, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.611008, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.611008, alpha=1.300000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.610999, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.610999, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.610999, alpha=1.300000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.611000, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.611000, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.611000, alpha=1.300000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.610999, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.610999, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.610999, alpha=1.300000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.611000, alpha=1.100000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.611000, alpha=1.200000. Excluding this order from the epsilon computation.
+WARNING:absl:_compute_log_a_frac failed to converge after 1000 iterations with q=0.032000, sigma=0.611000, alpha=1.300000. Excluding this order from the epsilon computation.
+== well N=8000 eps=8: deployable std {'m': 2000, 'cal': 'TS', 'lr': 0.01, 'val': 0.2298314416410191} | blind lr 0.003
+   blind - deployable +0.00007 [-0.00062, +0.00075]  acc -0.02 pts | vs public TS +0.00130 | vs oracle-best m=1000 +0.00059 | range ok True  [492s]
+== mis N=8000 eps=8: deployable std {'m': 62, 'cal': 'TS', 'lr': 0.01, 'val': 0.3152569396476672} | blind lr 0.003
+   blind - deployable -0.00076 [-0.00465, +0.00313]  acc -0.10 pts | vs public TS +0.00180 | vs oracle-best m=1000 +0.00083 | range ok True  [514s]
+exit 0
