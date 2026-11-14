@@ -64,3 +64,14 @@ Exploratory, NOT pre-registered (labelled as such everywhere):
   0.001-0.005 Brier, at no accuracy cost, and the margin shrinks as std is allowed larger quotas in the
   well-specified setup. That is at or below the 0.003 practical threshold, depends on tuning noise, and
   differs from the K = 4 fair rerun (parity, std slightly ahead on CE Brier).
+
+## Retraction after the reaudit of df9bb65 (15 Nov 2026; exploratory, on this screen's own seeds)
+The calibrators were capped: T ∈ [0.25, 4] and Platt a ∈ [0.25, 4]. Every public TS fit landed on T = 4.
+Rerun with T ≤ 16 and a ≥ 1/16 (candidate counts, ε, quotas, seeds and the pre-registered learning rates
+unchanged; `FROZEN_LR_FROM=calquota_results.json T_MAX=16 A_MIN=0.0625`), blind minus the best private
+baseline at N = 36000: well +0.00084 / +0.00101 / −0.00100, mis +0.00146 / +0.00813 / +0.00670 at
+ε = 1 / 4 / 8 (positive = blind worse). Outputs: calquota_results_frozen_widerange.json; the same run at the
+original range is calquota_results_frozen_origrange.json (per-seed records and edge-hit counts in both).
+The "exploratory" readings above (3-seed tuning, larger quotas) are void: they share the cap. The
+pre-registered outcome stays "no pass, no kill"; the 0.001-0.005 advantage is retracted. A confirmation with
+frozen wide ranges and fresh seeds is pre-registered separately (PREREG_CALQUOTA_CONFIRM.md).

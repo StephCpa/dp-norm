@@ -42,8 +42,23 @@ def budget(cands: list[Path], calibrated: bool) -> str:
       number labelled as a simulation, not a guarantee."""
     if not cands:
         return "-"
-    events, cal, blocked, parallel = [], 0.0, set(), True
+    events, cal, blocked = [], 0.0, set()
+    train_parts, cal_parts = [], []
     delta = None
+
+    def status(rec: dict, name: str):
+        """Cross-check release_private, randomness and release_blockers (reaudit of df9bb65): a record that
+        claims a private release must be secure and unblocked; one that does not must say why."""
+        rp, rnd, bl = rec.get("release_private"), rec.get("randomness"), rec.get("release_blockers")
+        if rp is None or bl is None or rnd is None:
+            return f"{name} lacks release_private, randomness or release_blockers"
+        if rp and (bl or rnd != "secure"):
+            return f"{name} claims a private release but is blocked or not secure"
+        if not rp and not bl:
+            return f"{name} is not a private release but names no blocker"
+        blocked.update(bl)
+        return None
+
     for c in cands:
         lp, tp = c / "privacy.json", c / "temperature.json"
         if not lp.exists():
@@ -55,7 +70,10 @@ def budget(cands: list[Path], calibrated: bool) -> str:
             return "no guarantee: candidates use different delta"
         delta = L["delta"]
         events.append((L["sigma"], L["sampling_rate"], L["steps"]))
-        blocked.update(L.get("release_blockers", ["unknown release status"]))
+        bad = status(L, f"{c.name}/privacy.json")
+        if bad:
+            return f"no guarantee: inconsistent ledger ({bad})"
+        train_parts.append(L.get("partition"))
         if calibrated:
             if not tp.exists():
                 return f"no guarantee: calibrated release declared but {c.name} has no temperature.json"
@@ -63,15 +81,20 @@ def budget(cands: list[Path], calibrated: bool) -> str:
             if not T.get("private") or not T.get("eps"):
                 return f"no guarantee: {c.name}'s temperature is non-private"
             cal += T["eps"]
-            blocked.update(T.get("release_blockers", ["unknown release status"]))
-            parallel &= partitions_disjoint(L.get("partition"), T.get("partition"))
+            bad = status(T, f"{c.name}/temperature.json")
+            if bad:
+                return f"no guarantee: inconsistent ledger ({bad})"
+            cal_parts.append(T.get("partition"))
     per_run = [epsilon(*e, delta, "pld") for e in events]
     train = composed_epsilon(events, delta)
     tag = f" [simulation, not a guarantee: {'; '.join(sorted(blocked))}]" if blocked else ""
     if not calibrated:
         return (f"uncalibrated release: per run {min(per_run):.2f}-{max(per_run):.2f}; {len(events)} candidates: "
                 f"{train:.2f}{tag}")
-    total, how = (max(train, cal), "parallel (disjoint partitions)") if parallel else \
+    # Parallel composition needs EVERY training slice disjoint from EVERY calibration slice, across
+    # candidates too (candidate A's training range may be candidate B's calibration range).
+    parallel = all(partitions_disjoint(a, b) for a in train_parts for b in cal_parts)
+    total, how = (max(train, cal), "parallel (all train/cal partitions disjoint)") if parallel else \
                  (train + cal, "sequential (disjointness not proven)")
     return (f"calibrated release: per run {min(per_run):.2f}-{max(per_run):.2f}; {len(events)} candidates: "
             f"train {train:.2f}, cal {cal:.1f}, end-to-end {total:.2f} {how}{tag}")
@@ -89,7 +112,11 @@ def main():
             for clip in ("std", "blind"):
                 cands = []
                 for run in sorted(R.glob(f"A-{regime}-{clip}-{obj}-lr*")):
-                    v = load(run / "eval_val_ts/metrics.json")
+                    # std is released calibrated, so it is chosen after its DP temperature (and the budget
+                    # counts the temperatures). blind is released at T = 1, so it is chosen on RAW validation
+                    # metrics; choosing it after a private temperature would spend the calibration budget
+                    # that its uncalibrated ledger leaves out (reaudit of df9bb65, P1).
+                    v = load(run / ("eval_val_ts/metrics.json" if clip == "std" else "eval_val/metrics.json"))
                     if v:
                         cands.append((v["brier"], run))
                 if cands:
@@ -110,9 +137,11 @@ def main():
                     continue
                 t1, ts = load(run / "eval/metrics.json"), load(run / "eval_ts/metrics.json")
                 lr = run.name.split("-lr")[-1]
+                # blind's release is T = 1: its calibrated metrics are not part of it and are not shown
+                tsc = (f"{ts['ece']:.4f} | {ts['brier']:.4f} | {ts['resolution']:.5f}" if clip == "std" and ts
+                       else "- | - | -")
                 lines.append(f"| {obj} | {regime} | {clip} | {lr} | {t1['acc']:.4f} | {t1['ece']:.4f} | "
-                             f"{t1['overconf']:+.4f} | {t1['brier']:.4f} | {ts['ece']:.4f} | {ts['brier']:.4f} | "
-                             f"{ts['resolution']:.5f} | {wall(run) or 0:.0f} | "
+                             f"{t1['overconf']:+.4f} | {t1['brier']:.4f} | {tsc} | {wall(run) or 0:.0f} | "
                              f"{budget(sorted(R.glob(f'A-{regime}-{clip}-{obj}-lr*')), calibrated=clip == 'std')} |")
 
     def get(obj, regime, clip, which):
@@ -123,15 +152,15 @@ def main():
         checks.append(f"- {tag}: {'HOLDS' if ok else ('FAILS' if ok is not None else 'n/a (runs missing)')} - {text}")
 
     ok = None
-    pairs = [(get(o, "auto", "blind", "eval_ts/metrics.json"), get(o, "auto", "std", "eval_ts/metrics.json")) for o in ("ce", "rlcd")]
+    pairs = [(get(o, "auto", "blind", "eval/metrics.json"), get(o, "auto", "std", "eval_ts/metrics.json")) for o in ("ce", "rlcd")]
     if all(a and b for a, b in pairs):
         ok = all(a["acc"] - b["acc"] >= 0.010 and b["brier"] - a["brier"] >= 0.005 for a, b in pairs)
-    say("B1", ok, "automatic clipping: blind beats std + DP-TS by >= 1.0 acc point and >= 0.005 Brier (CE and RLCD)")
+    say("B1", ok, "automatic clipping: blind (T = 1) beats std + DP-TS by >= 1.0 acc point and >= 0.005 Brier (CE and RLCD)")
     ok = None
-    pairs = [(get(o, "thr", "blind", "eval_ts/metrics.json"), get(o, "thr", "std", "eval_ts/metrics.json")) for o in ("ce", "rlcd")]
+    pairs = [(get(o, "thr", "blind", "eval/metrics.json"), get(o, "thr", "std", "eval_ts/metrics.json")) for o in ("ce", "rlcd")]
     if all(a and b for a, b in pairs):
         ok = all(abs(a["brier"] - b["brier"]) < 0.005 for a, b in pairs)
-    say("B2", ok, "threshold clipping at C = median: blind and std + DP-TS within 0.005 Brier (no gain claimed)")
+    say("B2", ok, "threshold clipping: blind (T = 1) and std + DP-TS within 0.005 Brier (no gain claimed)")
     ok = None
     trip = [(get(o, r, "blind", "eval/metrics.json"), get(o, r, "std", "eval/metrics.json"), ref.get(o))
             for o in ("ce", "rlcd") for r in ("thr", "auto")]

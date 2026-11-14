@@ -24,7 +24,10 @@ from dpdecide.metrics import softmax_rows
 from dpdecide.privacy import RELEASE_TEMPERATURE_KEYS, mechanism_seed, split_release
 from dpdecide.schema import partition_record, select_partition, filter_k, group_units, read_jsonl, select_rows
 
-GRID = np.exp(np.linspace(np.log(0.25), np.log(4.0), 61))
+# T in [1/16, 16]. The earlier [0.25, 4] grid capped the temperature: in the binary toy every public TS fit
+# landed on T = 4 and the true optimum was about 4.6-6 (reaudit of df9bb65). at_grid_edge in the ledger is a
+# function of the released T only, so it is public; an edge hit means the range is still too narrow.
+GRID = np.exp(np.linspace(np.log(1 / 16), np.log(16.0), 97))
 
 
 def brier_utility(logit_rows, answers, grid=GRID) -> np.ndarray:
@@ -99,7 +102,7 @@ def main(argv=None):
                n_rows=len(used), rows_dropped_by_cap=dropped, rows_excluded_shared_context=excluded,
                private=args.eps > 0, randomness=args.randomness, release_private=not blockers,
                partition=partition_record(args.data, args.unit, args.partition, args.start, args.limit),
-               excluded_by_context=bool(args.exclude_data),
+               excluded_by_context=bool(args.exclude_data), at_grid_edge=j in (0, len(GRID) - 1),
                release_blockers=blockers)
     public, internal = split_release(res, RELEASE_TEMPERATURE_KEYS)  # cardinalities stay internal
     out = Path(args.out)
@@ -108,7 +111,7 @@ def main(argv=None):
     diag = out.parent / "private_diagnostics"
     diag.mkdir(exist_ok=True)
     (diag / f"{out.stem}_internal.json").write_text(json.dumps(internal, indent=2))
-    print(f"T={res['temperature']:.4f} eps={args.eps}")
+    print(f"T={res['temperature']:.4f} eps={args.eps}" + ("  WARNING: T is on the grid edge" if res["at_grid_edge"] else ""))
 
 
 if __name__ == "__main__":

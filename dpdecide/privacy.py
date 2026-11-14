@@ -73,7 +73,8 @@ RELEASE_LEDGER_KEYS = frozenset({
     "randomness", "release_private", "release_blockers", "release_scope", "not_covered", "notes", "partition"})
 RELEASE_TEMPERATURE_KEYS = frozenset({
     "temperature", "eps", "delta", "sensitivity", "grid_size", "grid", "private", "randomness",
-    "release_private", "release_blockers", "max_rows_per_unit", "partition", "excluded_by_context"})
+    "release_private", "release_blockers", "max_rows_per_unit", "partition", "excluded_by_context",
+    "at_grid_edge"})
 
 
 def split_release(record: dict, allowed: frozenset) -> tuple[dict, dict]:

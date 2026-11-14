@@ -17,8 +17,11 @@ LRS = (1e-3, 3e-3, 1e-2, 3e-2)
 SEEDS = (1, 2, 3, 4, 5)
 MS = tuple(int(m) for m in os.environ.get("MS", "64,256,1024,4096").split(","))  # pre-registered default
 T975_DF4 = 2.776
-TGRID = np.exp(np.linspace(np.log(0.25), np.log(4), 41))
-AGRID, BGRID = np.exp(np.linspace(np.log(0.25), np.log(4), 21)), np.linspace(-1.5, 1.5, 13)
+# Calibrator search ranges. The pre-registered run used T in [0.25, 4] and a in [0.25, 4]; the reaudit of
+# df9bb65 found every public TS hitting T = 4. Env overrides (counts unchanged): T_MAX, A_MIN, B_MAX.
+TGRID = np.exp(np.linspace(np.log(0.25), np.log(float(os.environ.get("T_MAX", 4))), 41))
+AGRID = np.exp(np.linspace(np.log(float(os.environ.get("A_MIN", 0.25))), np.log(4), 21))
+BGRID = np.linspace(-float(os.environ.get("B_MAX", 1.5)), float(os.environ.get("B_MAX", 1.5)), 13)
 
 
 def make_data(seed, n_total, spec):
@@ -71,26 +74,41 @@ def exp_mech(util, eps, rng, sens=2.0):
     return rng.choice(len(util), p=pr / pr.sum())
 
 
+class Cal:
+    """A fitted calibrator: callable on margins, with its parameters and whether it sits on a range edge."""
+    def __init__(self, f, params, edge):
+        self.f, self.params, self.edge = f, params, edge
+
+    def __call__(self, dd):
+        return self.f(dd)
+
+
 def fit_ts(d, y, eps, rng):
     util = np.array([-brier_rows(1 / (1 + np.exp(-d / t)), y).sum() for t in TGRID])
-    j = util.argmax() if eps is None else exp_mech(util, eps, rng)
-    return lambda dd, t=TGRID[j]: dd / t
+    j = int(util.argmax() if eps is None else exp_mech(util, eps, rng))
+    t = float(TGRID[j])
+    return Cal(lambda dd: dd / t, {"T": t}, j in (0, len(TGRID) - 1))
 
 
 def fit_platt(d, y, eps, rng):
-    cand = [(a, c) for a in AGRID for c in BGRID]
-    util = np.array([-brier_rows(1 / (1 + np.exp(-(a * d + c))), y).sum() for a, c in cand])
-    j = util.argmax() if eps is None else exp_mech(util, eps, rng)
-    a, c = cand[j]
-    return lambda dd: a * dd + c
+    cand = [(ia, ib) for ia in range(len(AGRID)) for ib in range(len(BGRID))]
+    util = np.array([-brier_rows(1 / (1 + np.exp(-(AGRID[ia] * d + BGRID[ib]))), y).sum() for ia, ib in cand])
+    j = int(util.argmax() if eps is None else exp_mech(util, eps, rng))
+    ia, ib = cand[j]
+    a, c = float(AGRID[ia]), float(BGRID[ib])
+    return Cal(lambda dd: a * dd + c, {"a": a, "b": c},
+               ia in (0, len(AGRID) - 1) or ib in (0, len(BGRID) - 1))
 
 
 def score(f, cal, x, y):
     d = f(x)
     d = d[:, 1] - d[:, 0]
     p1 = 1 / (1 + np.exp(-cal(d)))
-    return dict(brier=float(brier_rows(p1, y).mean()), acc=float(((p1 > 0.5) == y).mean()),
-                ece=float(h.metrics(np.stack([1 - p1, p1], 1), y)["ece"]))
+    out = dict(brier=float(brier_rows(p1, y).mean()), acc=float(((p1 > 0.5) == y).mean()),
+               ece=float(h.metrics(np.stack([1 - p1, p1], 1), y)["ece"]))
+    if isinstance(cal, Cal):
+        out.update(cal_params=cal.params, cal_at_edge=bool(cal.edge))
+    return out
 
 
 ident = lambda dd: dd  # noqa: E731
@@ -104,7 +122,15 @@ def margin(f, x):
 TUNE_SEEDS = tuple(int(s) for s in os.environ.get("TUNE_SEEDS", "0").split(","))  # pre-registered: 0 only
 
 
+FROZEN = os.environ.get("FROZEN_LR_FROM", "")  # reuse another run's tuning (isolates a calibrator change)
+
+
 def tune(spec, n_total, eps):
+    if FROZEN:
+        for r in json.load(open(FROZEN)):
+            if (r["spec"], r["N"], r["eps"]) == (spec, n_total, eps):
+                return r["tuning"]
+        raise KeyError((spec, n_total, eps))
     out = {}
     for clip in ("std", "blind"):
         res = {lr: 0.0 for lr in LRS}
@@ -164,7 +190,11 @@ def main():
                 s2 = cp["brier"][0] <= -0.003 and cp["brier"][2] < 0 and cp["acc"][0] >= -0.005
                 weak = [m for m in MS if any(contrasts[f"std+DP{c} m={m}"]["brier"][0] <= -0.003 and
                                              contrasts[f"std+DP{c} m={m}"]["brier"][2] < 0 for c in ("TS",))]
+                edges = {k: sum(x.get("cal_at_edge", False) for x in v) for k, v in rows.items() if "cal_params" in v[0]}
                 report.append(dict(spec=spec, N=n_total, eps=eps, lr_std=lr_s, lr_blind=lr_b, tuning=tuned,
+                                   per_seed=rows, cal_at_edge_counts=edges,
+                                   ranges=dict(T=[float(TGRID[0]), float(TGRID[-1])], a=[float(AGRID[0]), float(AGRID[-1])],
+                                               b=[float(BGRID[0]), float(BGRID[-1])]),
                                    mean=mean, contrasts=contrasts, best_private=best, S1=s1, S2=s2,
                                    S1_weak_ms_vs_DPTS=weak))
                 print(f"\n== {spec} N={n_total} eps={eps} (lr std {lr_s:g}, blind {lr_b:g}) [{time.time()-t0:.0f}s]")
@@ -175,8 +205,12 @@ def main():
                     print(f"  {k:20s} Brier {mean[k]['brier']:.4f} acc {mean[k]['acc']:.4f} ece {mean[k]['ece']:.4f}{extra}")
                 print(f"  best private baseline: {best}; S1 {'PASS' if s1 else 'fail'}; S2 {'PASS' if s2 else 'fail'}; "
                       f"blind beats DP-TS at m in {weak}", flush=True)
+                hit = {k: n for k, n in edges.items() if n}
+                if hit:
+                    print(f"  WARNING calibrator on a range edge (seeds out of {len(SEEDS)}): {hit}", flush=True)
     tag = ("" if TUNE_SEEDS == (0,) else "_tune" + "-".join(map(str, TUNE_SEEDS))) + \
-          ("" if "MS" not in os.environ else "_m" + "-".join(map(str, MS)))
+          ("" if "MS" not in os.environ else "_m" + "-".join(map(str, MS))) + \
+          os.environ.get("OUT_TAG", "")
     json.dump(report, open(f"calquota_results{tag}.json", "w"), indent=1, default=float)
 
 

@@ -141,7 +141,14 @@ def unit_key(q: Question, unit: str) -> str:
     if unit == "context":
         return context_key(q)
     if unit == "row":
-        return q.id or hashlib.sha256(q.to_json().encode("utf-8")).hexdigest()
+        # Never hash the label: under label DP (neighbours differ only in labels) a key that depends on the
+        # answer makes partition membership and unit grouping depend on the protected label before RR
+        # (reaudit of df9bb65, P0). Without an id, the key is a hash of the inputs only; rows with identical
+        # inputs then share one unit. A supplied id must itself be label-independent (stated precondition).
+        if q.id:
+            return q.id
+        inputs = json.dumps([q.primitive, q.context, q.question, list(q.choices), q.source], ensure_ascii=False)
+        return hashlib.sha256(inputs.encode("utf-8")).hexdigest()
     raise ValueError(f"unknown unit {unit!r}")
 
 

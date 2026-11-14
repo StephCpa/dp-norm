@@ -210,8 +210,10 @@ def test_composed_epsilon_heterogeneous_and_refusals(tmp_path):
         r = tmp_path / name
         r.mkdir()
         (r / "privacy.json").write_text(json.dumps(dict(privacy="dpsgd", sigma=s, sampling_rate=q, steps=st,
-                                                         delta=1e-6, release_blockers=[])))
-        (r / "temperature.json").write_text(json.dumps(dict(private=True, eps=1.0, release_blockers=[])))
+                                                         delta=1e-6, release_blockers=[], release_private=True,
+                                                         randomness="secure")))
+        (r / "temperature.json").write_text(json.dumps(dict(private=True, eps=1.0, release_blockers=[],
+                                                            release_private=True, randomness="secure")))
         runs.append(r)
     # no partition records: disjointness unproven, so training and calibration add up
     text = budget(runs, calibrated=True)
@@ -233,7 +235,8 @@ def test_composed_epsilon_heterogeneous_and_refusals(tmp_path):
     (runs[1] / "temperature.json").unlink()
     assert budget(runs, calibrated=True).startswith("no guarantee")
     assert budget(runs, calibrated=False).startswith("uncalibrated release")
-    (runs[1] / "temperature.json").write_text(json.dumps(dict(private=False, eps=0.0)))
+    (runs[1] / "temperature.json").write_text(json.dumps(dict(private=False, eps=0.0, release_private=False,
+                                                              randomness="secure", release_blockers=["x"])))
     assert budget(runs, calibrated=True).startswith("no guarantee")
     (runs[1] / "privacy.json").unlink()
     assert budget(runs, calibrated=False).startswith("no guarantee")
@@ -255,3 +258,74 @@ def test_hash_partition_preserves_unit_adjacency():
     assert len(p1 ^ p2) >= 2
     assert not schema.partitions_disjoint(None, None)
 
+
+
+def test_budget_cross_candidate_overlap_and_ledger_consistency(tmp_path):
+    """Reaudit of df9bb65, P1: every train_i must be disjoint from every cal_j (the review's counterexample:
+    A trains on [0, .5) and calibrates on [.5, 1), B the other way round), and ledgers must be consistent."""
+    import json, sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    from summarize_blind import budget
+    part = lambda lo, hi: dict(scheme="hash", data="d.jsonl", unit="context", salt="s", lo=lo, hi=hi,  # noqa: E731
+                               start=0, limit=0)
+    ok = dict(release_private=True, randomness="secure", release_blockers=[])
+    runs = []
+    for i, (sig, ceps, tr, ca) in enumerate([(1.0, 0.01, (0, .5), (.5, 1)), (100.0, 5.0, (.5, 1), (0, .5))]):
+        r = tmp_path / f"c{i}"
+        r.mkdir()
+        (r / "privacy.json").write_text(json.dumps(dict(privacy="dpsgd", sigma=sig, sampling_rate=1.0, steps=1,
+                                                         delta=1e-6, partition=part(*tr), **ok)))
+        (r / "temperature.json").write_text(json.dumps(dict(private=True, eps=ceps, partition=part(*ca), **ok)))
+        runs.append(r)
+    text = budget(runs, calibrated=True)
+    assert "sequential" in text and "parallel" not in text, text
+    # contradictory ledgers are refused
+    L = json.loads((runs[0] / "privacy.json").read_text())
+    for bad in (dict(release_private=True, release_blockers=["seeded mechanism randomness"]),
+                dict(release_private=True, randomness="seeded"),
+                dict(release_private=False, release_blockers=[]),
+                {"release_private": None}):
+        (runs[0] / "privacy.json").write_text(json.dumps({**L, **bad}))
+        assert budget(runs, calibrated=True).startswith("no guarantee: inconsistent ledger"), bad
+
+
+def test_row_unit_key_ignores_the_label():
+    """Reaudit of df9bb65, P0: without ids, label-only neighbours must get the same row key, hence the same
+    hash-partition membership, so membership cannot reveal the label before randomized response."""
+    from dpdecide import schema
+    from dpdecide.schema import Question
+    qs = [Question("choice", "a context", "q", ["a", "b"], answer=y) for y in (0, 1)]
+    keys = {schema.unit_key(q, "row") for q in qs}
+    assert len(keys) == 1
+    for cut in (0.1, 0.3, 0.5, 0.7, 0.9):
+        sel = [len(schema.select_partition([q], "row", f"audit:0:{cut}")) for q in qs]
+        assert sel[0] == sel[1]
+    # different inputs still get different keys
+    assert schema.unit_key(Question("choice", "another", "q", ["a", "b"], answer=0), "row") not in keys
+
+
+def test_blind_selection_ignores_private_temperature(tmp_path):
+    """Reaudit of df9bb65, P1: blind is released at T = 1, so its candidate is chosen on raw validation
+    metrics; changing a calibrated validation metric must not change the winner."""
+    import contextlib, io, json, sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+    import summarize_blind as sb
+    m = lambda v: {"overall": dict(brier=v, acc=.7, ece=.1, overconf=.1, resolution=.1)}  # noqa: E731
+    for i, raw in enumerate((0.30, 0.20)):  # lr2 is better on RAW validation
+        d = tmp_path / f"A-thr-blind-ce-lr{i + 1}"
+        for sub, v in (("eval_val", raw), ("eval_val_ts", .1 + i * .1), ("eval", .3), ("eval_ts", .2)):
+            (d / sub).mkdir(parents=True)
+            (d / sub / "metrics.json").write_text(json.dumps(m(v)))
+
+    def winner():
+        sys.argv = ["summarize_blind", "--runs", str(tmp_path)]
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            sb.main()
+        return [ln for ln in buf.getvalue().splitlines() if ln.startswith("| ce | thr | blind")][0].split("|")[4].strip()
+
+    assert winner() == "2"
+    (tmp_path / "A-thr-blind-ce-lr1/eval_val_ts/metrics.json").write_text(json.dumps(m(.9)))
+    assert winner() == "2"

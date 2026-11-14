@@ -42,7 +42,11 @@ TRAIN="$PY dpdecide.train --device $DEVICE --data $DATA/train.jsonl --start $RL_
  --eval-every 25 --eval-n $EVAL_N --grad-checkpointing --micro 8 --unit context --max-rows-per-unit 4 \
  --randomness $RANDOMNESS ${N_UNITS_PUBLIC:+--n-units-public $N_UNITS_PUBLIC} ${TRAIN_PARTITION:+--partition $TRAIN_PARTITION}"
 LORA="--lora --lora-r 32"
-CAL="--device $DEVICE --data $DATA/train.jsonl --start $CAL_START --limit $CAL_LIMIT --exclude-data $DATA/train.jsonl --exclude-start $RL_START --randomness $RANDOMNESS ${CAL_PARTITION:+--partition $CAL_PARTITION}"
+CAL="--device $DEVICE --data $DATA/train.jsonl --start $CAL_START --limit $CAL_LIMIT --randomness $RANDOMNESS"
+# Hash partitions with the same salt are disjoint by construction, so the context exclusion (which couples
+# the calibration slice to the training slice and blocks release) is only used for positional slices.
+if [ -n "$CAL_PARTITION" ]; then CAL="$CAL --partition $CAL_PARTITION"
+else CAL="$CAL --exclude-data $DATA/train.jsonl --exclude-start $RL_START"; fi
 
 need_star() { : "${B_STAR:?set B_STAR}" "${EP_STAR:?set EP_STAR}" "${LR_STAR:?set LR_STAR}"; }
 
@@ -238,6 +242,9 @@ blindA() {  # label-blind vs standard clipping on binary decisions (BoolQ + tria
           $TRAIN --init $RUNS/warmup $LORA --objective $obj --privacy dpsgd --eps $eps --clip $c --clip-labels $clip \
               --auto-clip-gamma $g --expected-batch 128 --epochs 4 --lr $lr $K2 --out $run $SMOKE
           $PY dpdecide.calibrate --model $run $CALK --eps $eps --out $run/temperature.json $POST
+          # raw validation metrics: blind is selected on these, so its selection never reads the private
+          # temperature (reaudit of df9bb65, P1)
+          $PY dpdecide.evaluate --device $DEVICE --model $run --data $DATA/val.jsonl $K2 --out $run/eval_val $POST
           $PY dpdecide.evaluate --device $DEVICE --model $run --data $DATA/val.jsonl $K2 \
               --temperature $run/temperature.json --out $run/eval_val_ts $POST
           $PY dpdecide.evaluate --device $DEVICE --model $run --data $DATA/test.jsonl $K2 --out $run/eval $POST

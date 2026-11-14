@@ -1,10 +1,11 @@
 # Label-blind clipping for DP training of calibrated decision models (13–14 Nov 2026)
 
-> **Status, 14 Nov 2026, after three external reviews.**
-> - **Retracted:** the 13 Nov automatic-clipping advantage (+3.3 accuracy points, Brier 0.536 → 0.506) in the K = 4 toy. Std's learning rate had been chosen before temperature scaling. Tuned after calibration, the two tie (§3). Reproduced independently.
-> - **Killed before any GPU run:** the original tier A (`blindA`).
-> - **Open, small:** in a binary toy with a fixed private budget, blind clipping on all N units beat standard clipping plus a private calibrator on part of N by 0.001–0.005 Brier at no accuracy cost (§4). The pre-registered screen did not pass its decision rule; exploratory analyses are near the 0.003 threshold. A GPU pilot is not justified by the screen as pre-registered.
-> - **Release protocol:** fixed in three rounds (§8). `release_private: true` covers one run's mechanics under the stated adjacency. It is not a claim about a full selection-and-calibration pipeline. No run so far is a private release.
+> **Status, 15 Nov 2026, after four external reviews: label-blind clipping has no demonstrated practical advantage over a fair, well-ranged calibration baseline.**
+> - **Retracted (14 Nov):** the 13 Nov automatic-clipping advantage in the K = 4 toy (std's lr was chosen before temperature scaling).
+> - **Retracted (15 Nov):** the 14 Nov "open, small" advantage of 0.001–0.005 Brier in the binary calibration-quota screen. The standard baseline's calibrators were capped (T ≤ 4, Platt a ≥ 1/4) and every public TS fit sat on T = 4. With the caps widened and nothing else changed, the advantage vanishes or reverses (§4).
+> - **Kept:** the stationarity mechanism and its conditions (§2); the reward-blind analysis with narrow conclusions (§7).
+> - **GPU suspended.** A CPU confirmation with frozen wide ranges and fresh seeds is pre-registered (`gates/PREREG_CALQUOTA_CONFIRM.md`) and is run only after that file is pushed (§6).
+> - **Release protocol:** fixed in four rounds (§8). `release_private: true` covers one run's mechanics under the stated adjacency, not a full selection-and-calibration pipeline. No run so far is a private release.
 
 Code: github.com/StephCpa/dp-norm. Pre-registrations and outputs in `gates/`.
 
@@ -52,15 +53,38 @@ The 55-GPU-hour D1 grid would mostly re-measure Zhang et al. Not run.
 - 3-seed tuning removes the misspecified ε = 4/8 losses (they came with blind picking lr 3e-2 on one seed): N = 36000, ε = 4: well −0.0031 [−0.0042, −0.0021], mis −0.0038 [−0.0057, −0.0018].
 - The best baseline sat at the largest pre-registered quota (m = 4096). Larger quotas at ε = 4: well-specified shrinks to −0.0014 [−0.0026, −0.0002] at m = 16384; misspecified stays at −0.0035 to −0.0046.
 
-**Reading.** In this binary toy, training blind on everything beats spending private data on calibration by 0.001–0.005 Brier, with no accuracy cost, and more clearly under misspecification. The size is at or below the proposed 0.003 threshold, sensitive to tuning, and shrinks when std may spend a large share of N on calibration. The K = 4 toy (§3) showed parity. Whether this transfers to a language model is untested.
+**Retracted reading (15 Nov).** The 14 Nov reading ("training blind on everything beats spending private data on calibration by 0.001–0.005 Brier") does not hold. Both standard calibrators were capped: TS at T ≤ 4 and Platt at a ≥ 1/4, so neither could shrink the margin below a quarter. Every public TS fit in the screen sat on T = 4 (all 5 seeds, all 6 N = 36000 settings); unconstrained public fits are about T = 4.6–6. With TS widened to T ≤ 16 and Platt to a ≥ 1/16 (same candidate counts, same ε, same learning rates as the pre-registered run), blind minus the best private baseline becomes:
+
+| setup | ε = 1 | ε = 4 | ε = 8 |
+|---|---|---|---|
+| well-specified | +0.00084 [+0.00016, +0.00151] | +0.00101 [+0.00085, +0.00117] | −0.00100 [−0.00187, −0.00014] |
+| misspecified | +0.00146 [+0.00086, +0.00206] | +0.00813 [+0.00571, +0.01056] | +0.00670 [+0.00446, +0.00894] |
+
+(positive = blind worse; reproduced to five decimals from the reaudit of df9bb65; exploratory, on the screen's own seeds.) The misspecified ε = 1 cell, the only one that cleared the 0.003 bar, reverses with the learning rate unchanged.
+
+**What the screen could not say even before this.**
+- Std's lr was tuned for N with public TS and reused for every N − m pipeline.
+- Changing m changes the training set, q, steps, σ and the margins, as well as the calibration set, so Δ(m) compares two whole pipelines; it is not the causal cost of calibration rows. The confirmation decomposes it on the same trained model: privacy of calibration, a finite calibration set, and fewer training rows.
+- The "best private baseline" was picked by test means: an oracle reference, not a deployable choice.
+- The pre-registration and its results were in the same commit, so their order is not verifiable from git.
+- The JSON kept means and contrasts only. The scripts now keep per-seed metrics, calibrator parameters and edge hits.
 
 ## 5. Prior art
 - Nearest: DP-ERM with Lipschitz losses; Clipless DP-SGD (Béthune et al.); Menon et al.; DiceSGD, BAM; Bu et al.; adaptive clipping; DPSGD-F.
 - No paper found with a per-example worst case over labels or a fixed-point analysis of proper scoring rules under clipping. Not a novelty claim.
 
-## 6. GPU
+## 6. Next: CPU confirmation, then decide; GPU suspended
 - `blindA` refuses to run without `FORCE_BLINDA=1`.
-- The two-stage plan (binary CE, Qwen3-0.6B LoRA, 2 tasks, fixed total N, then confirmation seeds) is the right design if the §4 effect is worth testing. The screen as pre-registered does not justify it. If run, the toy suggests: tune on several seeds, include m up to about half of N, and power the confirmation for an effect near 0.003 Brier.
+- `gates/calquota_confirm.py` with `gates/PREREG_CALQUOTA_CONFIRM.md`:
+  - frozen wide ranges (T ∈ [1/32, 32]; Platt a ∈ [1/32, 4], b ∈ [−3, 3]) with edge-hit checks;
+  - every pipeline tuned on dev seeds 201–203; a deployable std pipeline chosen on dev data;
+  - quotas up to N/2; fresh evaluation seeds 101–110;
+  - the decomposition above.
+- Primary decision at N = 36000, ε = 4, both setups:
+  - "blind better" needs D ≤ −0.003 with the upper limit < 0;
+  - "closure" needs D's lower limit > −0.003.
+- Predicted: closure. Closure → a mechanism note, no GPU.
+- The GPU calibrator in `dpdecide/calibrate.py` had the same [0.25, 4] grid; it is now [1/16, 16] with an `at_grid_edge` flag.
 
 ## 7. Reward-blind clipping for DP-GRPO: no advantage observed, scaling suspended
 - Worst case is the balanced split, not K − 1 : 1 (reproduced).
@@ -82,7 +106,17 @@ The 55-GPU-hour D1 grid would mostly re-measure Zhang et al. Not run.
 | Rank condition written as JΠ | Holds | rank(ΠJ) = k − 1 |
 | Doc not in the repository | Holds | this file |
 
-Checks: 45 tests pass.
+**Reaudit of df9bb65.**
+| Finding | Verdict | Fix |
+|---|---|---|
+| Both standard calibrators capped; the screen's advantage depends on the cap | Holds, reproduced | §4 retraction; wide ranges, edge flags and per-seed records in the screen; GPU calibrator grid widened with `at_grid_edge`; confirmation pre-registered |
+| P0: in `--unit row` without ids, the fallback key hashed the whole row including the answer, so hash-partition membership (decided before RR) depended on the protected label | Holds | the fallback key hashes the inputs only; test: label-only neighbours get the same key and the same membership at every cut |
+| P1: only train_i vs cal_i was checked, not train_i vs cal_j | Holds | parallel composition only when every training partition is disjoint from every calibration partition; the review's counterexample is a test |
+| P1: blind chosen on calibrated validation metrics while its budget was uncalibrated | Holds | blind is chosen on raw validation metrics (`eval_val`, now produced by `run_grid.sh`); its calibrated metrics are not shown; B1/B2 compare blind at T = 1 with std + DP-TS |
+| Ledger consistency not cross-checked | Holds | `budget` refuses a record whose `release_private`, `randomness` and `release_blockers` disagree or are missing |
+| With partitions set, `run_grid.sh` still passed `--exclude-data` to calibration | Holds | exclusion is used only for positional slices |
+
+Checks: 48 tests pass; blind CPU dry run end to end.
 
 ## Sources
 - [Zhang et al., arXiv 2210.08248](https://arxiv.org/abs/2210.08248); [Bu et al., TMLR 2023](https://arxiv.org/abs/2106.07830); [Bu et al., Automatic Clipping](https://arxiv.org/abs/2206.07136)
